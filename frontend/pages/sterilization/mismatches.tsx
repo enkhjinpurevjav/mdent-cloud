@@ -176,20 +176,18 @@ export default function MismatchesPage() {
   };
 
   return (
-    <div style={{ maxWidth: 1400 }}>
-      <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгал → Зөрүү</h1>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-        Ариутгалын багажийн зөрүүг харах болон шийдвэрлэх.
-      </div>
+    <div className="max-w-[1400px]">
+      <h1 className="mb-1.5 text-lg font-semibold">Ариутгал → Зөрүү</h1>
+      <p className="mb-3 text-sm text-gray-500">Ариутгалын багажийн зөрүүг харах болон шийдвэрлэх.</p>
 
-      {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
+      {error && <div className="mb-2.5 text-sm text-red-700">{error}</div>}
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="mb-4 flex flex-wrap gap-3">
         <select
           value={selectedBranchId}
           onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
-          style={{ flex: "0 1 220px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+          className="min-w-[220px] rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
         >
           <option value="">Бүх салбар</option>
           {branches.map((b) => (
@@ -200,7 +198,7 @@ export default function MismatchesPage() {
         <select
           value={selectedStatus}
           onChange={(e) => setSelectedStatus(e.target.value as "UNRESOLVED" | "RESOLVED" | "")}
-          style={{ flex: "0 1 180px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+          className="min-w-[180px] rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
         >
           <option value="">Бүх төлөв</option>
           <option value="UNRESOLVED">⚠ Шийдвэрлээгүй</option>
@@ -211,29 +209,22 @@ export default function MismatchesPage() {
           type="button"
           onClick={() => void loadMismatches()}
           disabled={loading}
-          style={{
-            border: "1px solid #d1d5db",
-            background: "#fff",
-            borderRadius: 8,
-            padding: "8px 12px",
-            cursor: loading ? "default" : "pointer",
-            fontSize: 13,
-          }}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:cursor-default disabled:opacity-60"
         >
           {loading ? "Ачаалж байна..." : "Шинэчлэх"}
         </button>
       </div>
 
       {/* Grouped Mismatches */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className="flex flex-col gap-3">
         {loading && (
-          <div style={{ padding: 24, textAlign: "center", color: "#6b7280", fontSize: 13, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+          <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
             Ачаалж байна...
           </div>
         )}
 
         {!loading && groupedMismatches.length === 0 && (
-          <div style={{ padding: 24, textAlign: "center", color: "#6b7280", fontSize: 13, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+          <div className="rounded-xl border border-gray-200 bg-white p-6 text-center text-sm text-gray-500">
             Зөрүү олдсонгүй.
           </div>
         )}
@@ -241,19 +232,14 @@ export default function MismatchesPage() {
         {!loading && groupedMismatches.map((group) => (
           <div
             key={group.encounterId}
-            style={{
-              background: "#fff",
-              border: "1px solid #e5e7eb",
-              borderRadius: 10,
-              padding: 16,
-            }}
+            className="rounded-xl border border-gray-200 bg-white p-4"
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+            <div className="mb-3 flex items-start justify-between">
               <div>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                <div className="mb-1 text-sm font-semibold">
                   {group.patient}
                 </div>
-                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                <div className="text-xs text-gray-500">
                   Салбар: {group.branch} • Үзлэгийн огноо: {formatDateTime(group.visitDate)}
                 </div>
               </div>
@@ -262,50 +248,37 @@ export default function MismatchesPage() {
                 <button
                   type="button"
                   onClick={() => openResolveModal(group.encounterId)}
-                  style={{
-                    border: "none",
-                    background: "#16a34a",
-                    color: "#fff",
-                    borderRadius: 8,
-                    padding: "8px 12px",
-                    cursor: "pointer",
-                    fontSize: 13,
-                    fontWeight: 500,
-                  }}
+                  className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white"
                 >
                   Шийдвэрлэх
                 </button>
               )}
             </div>
 
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table className="w-full border-collapse text-sm">
               <thead>
-                <tr style={{ borderBottom: "1px solid #e5e7eb", color: "#6b7280", textAlign: "left" }}>
-                  <th style={{ padding: "8px 4px" }}>Багаж</th>
-                  <th style={{ padding: "8px 4px" }}>Код</th>
-                  <th style={{ padding: "8px 4px", width: 100 }}>Хэрэгтэй</th>
-                  <th style={{ padding: "8px 4px", width: 100 }}>Ашигласан</th>
-                  <th style={{ padding: "8px 4px", width: 100 }}>Зөрүү</th>
+                <tr className="border-b border-gray-200 text-left text-gray-500">
+                  <th className="px-1 py-2">Багаж</th>
+                  <th className="px-1 py-2">Код</th>
+                  <th className="w-[100px] px-1 py-2">Хэрэгтэй</th>
+                  <th className="w-[100px] px-1 py-2">Ашигласан</th>
+                  <th className="w-[100px] px-1 py-2">Зөрүү</th>
                 </tr>
               </thead>
               <tbody>
                 {group.mismatches.map((mismatch) => (
-                  <tr key={mismatch.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "8px 4px" }}>{mismatch.tool?.name || "—"}</td>
-                    <td style={{ padding: "8px 4px" }}>{mismatch.cycle?.code || "—"}</td>
-                    <td style={{ padding: "8px 4px" }}>{mismatch.requiredQty}</td>
-                    <td style={{ padding: "8px 4px" }}>{mismatch.finalizedQty}</td>
-                    <td style={{ padding: "8px 4px" }}>
+                  <tr key={mismatch.id} className="border-b border-gray-100">
+                    <td className="px-1 py-2">{mismatch.tool?.name || "—"}</td>
+                    <td className="px-1 py-2">{mismatch.cycle?.code || "—"}</td>
+                    <td className="px-1 py-2">{mismatch.requiredQty}</td>
+                    <td className="px-1 py-2">{mismatch.finalizedQty}</td>
+                    <td className="px-1 py-2">
                       <span
-                        style={{
-                          display: "inline-block",
-                          padding: "2px 6px",
-                          borderRadius: 4,
-                          fontSize: 12,
-                          fontWeight: 500,
-                          background: mismatch.mismatchQty > 0 ? "#fee2e2" : "#d1fae5",
-                          color: mismatch.mismatchQty > 0 ? "#991b1b" : "#065f46",
-                        }}
+                        className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${
+                          mismatch.mismatchQty > 0
+                            ? "bg-red-100 text-red-900"
+                            : "bg-emerald-100 text-emerald-900"
+                        }`}
                       >
                         {mismatch.mismatchQty > 0 ? `+${mismatch.mismatchQty}` : mismatch.mismatchQty}
                       </span>
@@ -321,49 +294,29 @@ export default function MismatchesPage() {
       {/* Resolve Modal */}
       {resolvingEncounterId !== null && (
         <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50"
           onClick={closeResolveModal}
         >
           <div
-            style={{
-              background: "#fff",
-              borderRadius: 12,
-              padding: 24,
-              width: "90%",
-              maxWidth: 500,
-              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.2)",
-            }}
+            className="w-[90%] max-w-[500px] rounded-xl bg-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 16 }}>
-              Зөрүү шийдвэрлэх
-            </h2>
+            <h2 className="mb-4 text-base font-semibold">Зөрүү шийдвэрлэх</h2>
 
-            <div style={{ marginBottom: 12 }}>
-              <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-                Шийдвэрлэсэн хүний нэр <span style={{ color: "#dc2626" }}>*</span>
+            <div className="mb-3">
+              <label className="mb-1 block text-xs text-gray-500">
+                Шийдвэрлэсэн хүний нэр <span className="text-red-600">*</span>
               </label>
               <input
                 value={resolverName}
                 onChange={(e) => setResolverName(e.target.value)}
                 placeholder="Нэр оруулах"
-                style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
               />
             </div>
 
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
+            <div className="mb-4">
+              <label className="mb-1 block text-xs text-gray-500">
                 Тэмдэглэл
               </label>
               <textarea
@@ -371,22 +324,15 @@ export default function MismatchesPage() {
                 onChange={(e) => setResolveNote(e.target.value)}
                 placeholder="Нэмэлт мэдээлэл..."
                 rows={3}
-                style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontFamily: "inherit" }}
+                className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
               />
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={closeResolveModal}
-                style={{
-                  border: "1px solid #d1d5db",
-                  background: "#fff",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  cursor: "pointer",
-                  fontSize: 13,
-                }}
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
               >
                 Болих
               </button>
@@ -394,16 +340,7 @@ export default function MismatchesPage() {
                 type="button"
                 onClick={submitResolve}
                 disabled={loading}
-                style={{
-                  border: "none",
-                  background: "#2563eb",
-                  color: "#fff",
-                  borderRadius: 8,
-                  padding: "8px 12px",
-                  cursor: loading ? "default" : "pointer",
-                  fontSize: 13,
-                  fontWeight: 500,
-                }}
+                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:cursor-default disabled:opacity-60"
               >
                 {loading ? "Шийдвэрлэж байна..." : "Шийдвэрлэх"}
               </button>

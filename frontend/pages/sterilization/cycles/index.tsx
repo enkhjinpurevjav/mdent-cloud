@@ -93,20 +93,18 @@ export default function CyclesListPage() {
   };
 
   return (
-    <div style={{ maxWidth: 1400 }}>
-      <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгал → Циклийн жагсаалт</h1>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-        Автоклавын циклүүдийг харах, шүүх.
-      </div>
+    <div className="max-w-[1400px]">
+      <h1 className="mb-1.5 text-lg font-semibold">Ариутгал → Циклийн жагсаалт</h1>
+      <p className="mb-3 text-sm text-gray-500">Автоклавын циклүүдийг харах, шүүх.</p>
 
-      {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
+      {error && <div className="mb-2.5 text-sm text-red-700">{error}</div>}
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+      <div className="mb-4 flex flex-wrap gap-3">
         <select
           value={selectedBranchId}
           onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
-          style={{ flex: "0 1 220px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+          className="min-w-[220px] flex-none rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
         >
           <option value="">Бүх салбар</option>
           {branches.map((b) => (
@@ -117,7 +115,7 @@ export default function CyclesListPage() {
         <select
           value={selectedResult}
           onChange={(e) => setSelectedResult(e.target.value as "" | "PASS" | "FAIL")}
-          style={{ flex: "0 1 180px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+          className="min-w-[180px] flex-none rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
         >
           <option value="">Бүх үр дүн</option>
           <option value="PASS">✓ PASS</option>
@@ -128,45 +126,38 @@ export default function CyclesListPage() {
           type="button"
           onClick={() => void loadCycles()}
           disabled={loading}
-          style={{
-            border: "1px solid #d1d5db",
-            background: "#fff",
-            borderRadius: 8,
-            padding: "8px 12px",
-            cursor: loading ? "default" : "pointer",
-            fontSize: 13,
-          }}
+          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:cursor-default disabled:opacity-60"
         >
           {loading ? "Ачаалж байна..." : "Шинэчлэх"}
         </button>
       </div>
 
       {/* Cycles Table */}
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
         {loading && (
-          <div style={{ padding: 24, textAlign: "center", color: "#6b7280", fontSize: 13 }}>
+          <div className="p-6 text-center text-sm text-gray-500">
             Ачаалж байна...
           </div>
         )}
 
         {!loading && cycles.length === 0 && (
-          <div style={{ padding: 24, textAlign: "center", color: "#6b7280", fontSize: 13 }}>
+          <div className="p-6 text-center text-sm text-gray-500">
             Цикл олдсонгүй.
           </div>
         )}
 
         {!loading && cycles.length > 0 && (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb", color: "#6b7280", textAlign: "left" }}>
-                <th style={{ padding: "12px 16px", width: 50 }}></th>
-                <th style={{ padding: "12px 16px" }}>Код</th>
-                <th style={{ padding: "12px 16px" }}>Салбар</th>
-                <th style={{ padding: "12px 16px" }}>Машин</th>
-                <th style={{ padding: "12px 16px" }}>Дууссан огноо</th>
-                <th style={{ padding: "12px 16px", width: 100 }}>Үр дүн</th>
-                <th style={{ padding: "12px 16px" }}>Ажилтан</th>
-                <th style={{ padding: "12px 16px", width: 100, textAlign: "center" }}>Багажийн тоо</th>
+              <tr className="border-b border-gray-200 bg-gray-50 text-left text-gray-500">
+                <th className="w-[50px] px-4 py-3"></th>
+                <th className="px-4 py-3">Код</th>
+                <th className="px-4 py-3">Салбар</th>
+                <th className="px-4 py-3">Машин</th>
+                <th className="px-4 py-3">Дууссан огноо</th>
+                <th className="w-[100px] px-4 py-3">Үр дүн</th>
+                <th className="px-4 py-3">Ажилтан</th>
+                <th className="w-[100px] px-4 py-3 text-center">Багажийн тоо</th>
               </tr>
             </thead>
             <tbody>
@@ -178,113 +169,104 @@ export default function CyclesListPage() {
                 return (
                   <React.Fragment key={cycle.id}>
                     <tr
-                      style={{
-                        borderBottom: "1px solid #f3f4f6",
-                        cursor: "pointer",
-                        background: isExpanded ? "#f9fafb" : "#fff",
-                      }}
+                      className={`cursor-pointer border-b border-gray-100 ${isExpanded ? "bg-gray-50" : "bg-white"}`}
                       onClick={() => toggleExpand(cycle.id)}
                     >
-                      <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                        <span style={{ fontSize: 16 }}>{isExpanded ? "▼" : "▶"}</span>
+                      <td className="px-4 py-3 text-center">
+                        <span className="text-base">{isExpanded ? "▼" : "▶"}</span>
                       </td>
-                      <td style={{ padding: "12px 16px", fontWeight: 500 }}>{cycle.code}</td>
-                      <td style={{ padding: "12px 16px" }}>{cycle.branch?.name || "—"}</td>
-                      <td style={{ padding: "12px 16px" }}>{cycle.machineNumber}</td>
-                      <td style={{ padding: "12px 16px" }}>{formatDateTime(cycle.completedAt)}</td>
-                      <td style={{ padding: "12px 16px" }}>
+                      <td className="px-4 py-3 font-medium">{cycle.code}</td>
+                      <td className="px-4 py-3">{cycle.branch?.name || "—"}</td>
+                      <td className="px-4 py-3">{cycle.machineNumber}</td>
+                      <td className="px-4 py-3">{formatDateTime(cycle.completedAt)}</td>
+                      <td className="px-4 py-3">
                         <span
-                          style={{
-                            display: "inline-block",
-                            padding: "4px 8px",
-                            borderRadius: 6,
-                            fontSize: 12,
-                            fontWeight: 500,
-                            background: cycle.result === "PASS" ? "#d1fae5" : "#fee2e2",
-                            color: cycle.result === "PASS" ? "#065f46" : "#991b1b",
-                          }}
+                          className={`inline-block rounded-md px-2 py-1 text-xs font-medium ${
+                            cycle.result === "PASS"
+                              ? "bg-emerald-100 text-emerald-900"
+                              : "bg-red-100 text-red-900"
+                          }`}
                         >
                           {cycle.result === "PASS" ? "✓ PASS" : "✗ FAIL"}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 16px" }}>{cycle.operator}</td>
-                      <td style={{ padding: "12px 16px", textAlign: "center" }}>{toolCount}</td>
+                      <td className="px-4 py-3">{cycle.operator}</td>
+                      <td className="px-4 py-3 text-center">{toolCount}</td>
                     </tr>
 
                     {isExpanded && (
-                      <tr style={{ background: "#f9fafb" }}>
-                        <td colSpan={8} style={{ padding: 16 }}>
+                      <tr className="bg-gray-50">
+                        <td colSpan={8} className="p-4">
                           {/* Cycle Details */}
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+                          <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                             {cycle.sterilizationRunNumber && (
                               <div>
-                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Ариутгалын дугаар:</div>
-                                <div style={{ fontSize: 13, fontWeight: 500 }}>{cycle.sterilizationRunNumber}</div>
+                                <div className="mb-0.5 text-xs text-gray-500">Ариутгалын дугаар:</div>
+                                <div className="text-sm font-medium">{cycle.sterilizationRunNumber}</div>
                               </div>
                             )}
                             {cycle.startedAt && (
                               <div>
-                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Эхэлсэн цаг:</div>
-                                <div style={{ fontSize: 13 }}>{formatDateTime(cycle.startedAt)}</div>
+                                <div className="mb-0.5 text-xs text-gray-500">Эхэлсэн цаг:</div>
+                                <div className="text-sm">{formatDateTime(cycle.startedAt)}</div>
                               </div>
                             )}
                             {cycle.finishedAt && (
                               <div>
-                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Дууссан цаг:</div>
-                                <div style={{ fontSize: 13 }}>{formatDateTime(cycle.finishedAt)}</div>
+                                <div className="mb-0.5 text-xs text-gray-500">Дууссан цаг:</div>
+                                <div className="text-sm">{formatDateTime(cycle.finishedAt)}</div>
                               </div>
                             )}
                             {cycle.removedFromAutoclaveAt && (
                               <div>
-                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Автоклаваас гаргасан:</div>
-                                <div style={{ fontSize: 13 }}>{formatDateTime(cycle.removedFromAutoclaveAt)}</div>
+                                <div className="mb-0.5 text-xs text-gray-500">Автоклаваас гаргасан:</div>
+                                <div className="text-sm">{formatDateTime(cycle.removedFromAutoclaveAt)}</div>
                               </div>
                             )}
                             {cycle.pressure !== null && cycle.pressure !== undefined && (
                               <div>
-                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Даралт:</div>
-                                <div style={{ fontSize: 13 }}>{cycle.pressure} kPa</div>
+                                <div className="mb-0.5 text-xs text-gray-500">Даралт:</div>
+                                <div className="text-sm">{cycle.pressure} kPa</div>
                               </div>
                             )}
                             {cycle.temperature !== null && cycle.temperature !== undefined && (
                               <div>
-                                <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 2 }}>Температур:</div>
-                                <div style={{ fontSize: 13 }}>{cycle.temperature}°C</div>
+                                <div className="mb-0.5 text-xs text-gray-500">Температур:</div>
+                                <div className="text-sm">{cycle.temperature}°C</div>
                               </div>
                             )}
                           </div>
 
-                          <div style={{ marginBottom: 12 }}>
-                            <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Тэмдэглэл:</div>
-                            <div style={{ fontSize: 13 }}>
-                              {cycle.notes || <span style={{ color: "#9ca3af" }}>Тэмдэглэл байхгүй</span>}
+                          <div className="mb-3">
+                            <div className="mb-1 text-xs text-gray-500">Тэмдэглэл:</div>
+                            <div className="text-sm">
+                              {cycle.notes || <span className="text-gray-400">Тэмдэглэл байхгүй</span>}
                             </div>
                           </div>
 
                           {toolCount > 0 && (
                             <div>
-                              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>Багажийн жагсаалт:</div>
-                              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                              <div className="mb-2 text-xs text-gray-500">Багажийн жагсаалт:</div>
+                              <table className="w-full border-collapse text-sm">
                                 <thead>
-                                  <tr style={{ borderBottom: "1px solid #e5e7eb", color: "#6b7280", textAlign: "left" }}>
-                                    <th style={{ padding: "6px 8px" }}>Багаж</th>
-                                    <th style={{ padding: "6px 8px", width: 140 }}>Үйлдвэрлэсэн тоо</th>
+                                  <tr className="border-b border-gray-200 text-left text-gray-500">
+                                    <th className="px-2 py-1.5">Багаж</th>
+                                    <th className="w-[140px] px-2 py-1.5">Үйлдвэрлэсэн тоо</th>
                                   </tr>
                                 </thead>
                                 <tbody>
-  {cycle.toolLines?.map((line) => (
-    <tr key={line.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-      <td style={{ padding: "6px 8px" }}>{line.tool?.name || `Tool #${line.toolId}`}</td>
-      <td style={{ padding: "6px 8px" }}>{line.producedQty}</td>
-    </tr>
-  ))}
+                                  {cycle.toolLines?.map((line) => (
+                                    <tr key={line.id} className="border-b border-gray-100">
+                                      <td className="px-2 py-1.5">{line.tool?.name || `Tool #${line.toolId}`}</td>
+                                      <td className="px-2 py-1.5">{line.producedQty}</td>
+                                    </tr>
+                                  ))}
 
-  {/* Bottom total row */}
-  <tr style={{ borderTop: "2px solid #e5e7eb" }}>
-    <td style={{ padding: "6px 8px", fontWeight: 600 }}>Бүгд</td>
-    <td style={{ padding: "6px 8px", fontWeight: 600 }}>{totalProducedQty}</td>
-  </tr>
-</tbody>
+                                  <tr className="border-t-2 border-gray-200">
+                                    <td className="px-2 py-1.5 font-semibold">Бүгд</td>
+                                    <td className="px-2 py-1.5 font-semibold">{totalProducedQty}</td>
+                                  </tr>
+                                </tbody>
                               </table>
                             </div>
                           )}

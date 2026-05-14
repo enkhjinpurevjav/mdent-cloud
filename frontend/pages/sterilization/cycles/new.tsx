@@ -315,28 +315,25 @@ export default function CycleCreatePage() {
   };
 
   return (
-    <div style={{ maxWidth: 1200 }}>
-      <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгал → Цикл үүсгэх</h1>
-      <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-        Автоклавын цикл үүсгэх. Багажуудын үйлдвэрлэгдсэн тоог бүртгэнэ.
-      </div>
+    <div className="max-w-[1200px]">
+      <h1 className="mb-1.5 text-lg font-semibold">Ариутгал → Цикл үүсгэх</h1>
+      <p className="mb-3 text-sm text-gray-500">Автоклавын цикл үүсгэх. Багажуудын үйлдвэрлэгдсэн тоог бүртгэнэ.</p>
 
-      {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
-      {successMsg && <div style={{ color: "#15803d", marginBottom: 10, fontSize: 13 }}>{successMsg}</div>}
+      {error && <div className="mb-2.5 text-sm text-red-700">{error}</div>}
+      {successMsg && <div className="mb-2.5 text-sm text-emerald-700">{successMsg}</div>}
 
-      {/* Header Information */}
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 12 }}>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>Циклын мэдээлэл</div>
-        
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+      <div className="mb-3 rounded-xl border border-gray-200 bg-white p-4">
+        <div className="mb-3 font-semibold">Циклын мэдээлэл</div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Салбар <span style={{ color: "#dc2626" }}>*</span>
+            <label className="mb-1 block text-xs text-gray-500">
+              Салбар <span className="text-red-600">*</span>
             </label>
             <select
               value={branchId}
               onChange={(e) => setBranchId(e.target.value ? Number(e.target.value) : "")}
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             >
               <option value="">Сонгох...</option>
               {branches.map((b) => (
@@ -346,45 +343,43 @@ export default function CycleCreatePage() {
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Ариутгалын дугаар
-            </label>
+            <label className="mb-1 block text-xs text-gray-500">Ариутгалын дугаар</label>
             <input
               value={sterilizationRunNumber}
               onChange={(e) => setSterilizationRunNumber(e.target.value)}
               placeholder="Ж: SR-001"
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Циклын код <span style={{ color: "#dc2626" }}>*</span>
+            <label className="mb-1 block text-xs text-gray-500">
+              Циклын код <span className="text-red-600">*</span>
             </label>
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               onBlur={checkCodeUniqueness}
               placeholder="Ж: T-2024-001"
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
               aria-describedby={codeWarning ? "code-warning" : undefined}
             />
             {codeWarning && (
-              <div id="code-warning" role="alert" aria-live="polite" style={{ fontSize: 11, color: "#ea580c", marginTop: 4 }}>
+              <div id="code-warning" role="alert" aria-live="polite" className="mt-1 text-xs text-orange-600">
                 {codeWarning}
               </div>
             )}
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Машин <span style={{ color: "#dc2626" }}>*</span>
+            <label className="mb-1 block text-xs text-gray-500">
+              Машин <span className="text-red-600">*</span>
             </label>
             <select
               value={machineId}
               onChange={(e) => setMachineId(e.target.value ? Number(e.target.value) : "")}
               disabled={!branchId || machines.length === 0}
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm disabled:bg-gray-100"
             >
               <option value="">Сонгох...</option>
               {machines.map((m) => (
@@ -394,78 +389,70 @@ export default function CycleCreatePage() {
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Эхэлсэн цаг <span style={{ color: "#dc2626" }}>*</span>
+            <label className="mb-1 block text-xs text-gray-500">
+              Эхэлсэн цаг <span className="text-red-600">*</span>
             </label>
             <input
               type="datetime-local"
               value={startedAt}
               onChange={(e) => setStartedAt(e.target.value)}
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Даралт
-            </label>
-            <div style={{ width: "100%", display: "flex", alignItems: "center", gap: 6 }}>
+            <label className="mb-1 block text-xs text-gray-500">Даралт</label>
+            <div className="flex items-center gap-1.5">
               <input
                 type="text"
                 value={pressure}
                 onChange={(e) => setPressure(e.target.value)}
                 placeholder="Ж: 90 230"
-                style={{ flex: 1, border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13, minWidth: 0 }}
+                className="min-w-0 flex-1 rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
               />
-              <span style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap" }}>
-                kPa
-              </span>
+              <span className="whitespace-nowrap text-sm text-gray-500">kPa</span>
             </div>
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Температур
-            </label>
+            <label className="mb-1 block text-xs text-gray-500">Температур</label>
             <input
               type="number"
               value={temperature}
               onChange={(e) => setTemperature(e.target.value)}
               placeholder="Ж: 134"
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Дууссан цаг <span style={{ color: "#dc2626" }}>*</span>
+            <label className="mb-1 block text-xs text-gray-500">
+              Дууссан цаг <span className="text-red-600">*</span>
             </label>
             <input
               type="datetime-local"
               value={finishedAt}
               readOnly
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13, background: "#f9fafb", cursor: "default" }}
+              className="w-full cursor-default rounded-lg border border-gray-300 bg-gray-50 px-2.5 py-2 text-sm"
             />
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Автоклаваас гаргасан цаг
-            </label>
+            <label className="mb-1 block text-xs text-gray-500">Автоклаваас гаргасан цаг</label>
             <input
               type="datetime-local"
               value={removedFromAutoclaveAt}
               onChange={(e) => setRemovedFromAutoclaveAt(e.target.value)}
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Үр дүн <span style={{ color: "#dc2626" }}>*</span>
+            <label className="mb-1 block text-xs text-gray-500">
+              Үр дүн <span className="text-red-600">*</span>
             </label>
-            <div style={{ display: "flex", gap: 16, alignItems: "center", paddingTop: 8 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+            <div className="flex items-center gap-4 pt-2">
+              <label className="flex cursor-pointer items-center gap-1.5">
                 <input
                   type="radio"
                   name="result"
@@ -473,9 +460,9 @@ export default function CycleCreatePage() {
                   checked={result === "PASS"}
                   onChange={() => setResult("PASS")}
                 />
-                <span style={{ fontSize: 13, color: "#15803d", fontWeight: 500 }}>✓ PASS</span>
+                <span className="text-sm font-medium text-emerald-700">✓ PASS</span>
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <label className="flex cursor-pointer items-center gap-1.5">
                 <input
                   type="radio"
                   name="result"
@@ -483,20 +470,20 @@ export default function CycleCreatePage() {
                   checked={result === "FAIL"}
                   onChange={() => setResult("FAIL")}
                 />
-                <span style={{ fontSize: 13, color: "#dc2626", fontWeight: 500 }}>✗ FAIL</span>
+                <span className="text-sm font-medium text-red-700">✗ FAIL</span>
               </label>
             </div>
           </div>
 
           <div>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Сувилагчийн нэр <span style={{ color: "#dc2626" }}>*</span>
+            <label className="mb-1 block text-xs text-gray-500">
+              Сувилагчийн нэр <span className="text-red-600">*</span>
             </label>
             <select
               value={operator}
               onChange={(e) => setOperator(e.target.value)}
               disabled={!branchId}
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm disabled:bg-gray-100"
             >
               {!branchId && <option value="">Эхлээд салбар сонгоно уу</option>}
               {branchId && sterilizationUsers.length === 0 && <option value="">Сувилагч байхгүй</option>}
@@ -507,85 +494,60 @@ export default function CycleCreatePage() {
             </select>
           </div>
 
-          <div style={{ gridColumn: "1 / -1" }}>
-            <label style={{ fontSize: 12, color: "#6b7280", marginBottom: 4, display: "block" }}>
-              Тэмдэглэл
-            </label>
+          <div className="md:col-span-2 xl:col-span-4">
+            <label className="mb-1 block text-xs text-gray-500">Тэмдэглэл</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Нэмэлт мэдээлэл..."
               rows={2}
-              style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13, fontFamily: "inherit" }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
           </div>
         </div>
       </div>
 
-      {/* Tool Lines */}
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontWeight: 600 }}>Багажийн жагсаалт</div>
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <div className="font-semibold">Багажийн жагсаалт</div>
           <button
             type="button"
             onClick={addToolLine}
             disabled={!branchId}
-            style={{
-              border: "none",
-              background: "#16a34a",
-              color: "#fff",
-              borderRadius: 8,
-              padding: "6px 12px",
-              cursor: branchId ? "pointer" : "not-allowed",
-              fontSize: 13,
-            }}
+            className="rounded-lg bg-green-600 px-3 py-1.5 text-sm text-white disabled:cursor-not-allowed disabled:bg-gray-400"
           >
             + Багаж нэмэх
           </button>
         </div>
 
-        {!branchId && (
-          <div style={{ fontSize: 13, color: "#6b7280", padding: "12px 0" }}>
-            Эхлээд салбар сонгоно уу.
-          </div>
-        )}
-
-        {branchId && toolLines.length === 0 && (
-          <div style={{ fontSize: 13, color: "#6b7280", padding: "12px 0" }}>
-            Багаж нэмээгүй байна.
-          </div>
-        )}
+        {!branchId && <div className="py-3 text-sm text-gray-500">Эхлээд салбар сонгоно уу.</div>}
+        {branchId && toolLines.length === 0 && <div className="py-3 text-sm text-gray-500">Багаж нэмээгүй байна.</div>}
 
         {branchId && toolLines.length > 0 && (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr style={{ borderBottom: "1px solid #e5e7eb", color: "#6b7280", textAlign: "left" }}>
-                <th style={{ padding: "8px 4px" }}>№</th>
-                <th style={{ padding: "8px 4px" }}>Багаж</th>
-                <th style={{ padding: "8px 4px", width: 140 }}>Үйлдвэрлэсэн тоо</th>
-                <th style={{ padding: "8px 4px", width: 100 }}></th>
+              <tr className="border-b border-gray-200 text-left text-gray-500">
+                <th className="px-1 py-2">№</th>
+                <th className="px-1 py-2">Багаж</th>
+                <th className="w-[140px] px-1 py-2">Үйлдвэрлэсэн тоо</th>
+                <th className="w-[100px] px-1 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {toolLines.map((line, index) => {
-                // Filter tools based on search query (case-insensitive contains search)
                 const filteredTools = line.toolSearch.trim()
-                  ? tools.filter((tool) => 
-                      tool.name.toLowerCase().includes(line.toolSearch.toLowerCase())
-                    )
+                  ? tools.filter((tool) => tool.name.toLowerCase().includes(line.toolSearch.toLowerCase()))
                   : tools;
 
                 return (
-                  <tr key={line.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "8px 4px", verticalAlign: "top", paddingTop: "12px" }}>{index + 1}</td>
-                    <td style={{ padding: "8px 4px" }}>
-                      {/* Single autocomplete-style input */}
-                      <div style={{ position: "relative" }}>
+                  <tr key={line.id} className="border-b border-gray-100">
+                    <td className="px-1 py-2 align-top">{index + 1}</td>
+                    <td className="px-1 py-2">
+                      <div className="relative">
                         <input
                           type="text"
                           value={line.toolSearch}
                           onChange={(e) => {
-                            // Clear toolId when typing to avoid mismatch
                             patchToolLine(index, {
                               toolSearch: e.target.value,
                               toolId: "",
@@ -600,32 +562,12 @@ export default function CycleCreatePage() {
                             }
                           }}
                           placeholder="Багаж хайх..."
-                          style={{ 
-                            width: "100%", 
-                            border: line.duplicateError ? "1px solid #dc2626" : "1px solid #d1d5db", 
-                            borderRadius: 8, 
-                            padding: "6px 8px", 
-                            fontSize: 13
-                          }}
+                          className={`w-full rounded-lg border px-2 py-1.5 text-sm ${
+                            line.duplicateError ? "border-red-600" : "border-gray-300"
+                          }`}
                         />
-                        {/* Dropdown with filtered options */}
                         {line.showDropdown && filteredTools.length > 0 && (
-                          <div 
-                            style={{
-                              position: "absolute",
-                              top: "100%",
-                              left: 0,
-                              right: 0,
-                              maxHeight: "200px",
-                              overflowY: "auto",
-                              background: "#fff",
-                              border: "1px solid #d1d5db",
-                              borderRadius: 8,
-                              marginTop: 2,
-                              zIndex: 10,
-                              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)"
-                            }}
-                          >
+                          <div className="absolute left-0 right-0 top-full z-10 mt-0.5 max-h-[200px] overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-md">
                             {filteredTools.map((tool) => (
                               <div
                                 key={tool.id}
@@ -633,19 +575,9 @@ export default function CycleCreatePage() {
                                   e.preventDefault();
                                   selectTool(index, tool.id);
                                 }}
-                                style={{
-                                  padding: "8px 10px",
-                                  cursor: "pointer",
-                                  fontSize: 13,
-                                  borderBottom: "1px solid #f3f4f6",
-                                  background: line.toolId === tool.id ? "#eff6ff" : "#fff"
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = "#f3f4f6";
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = line.toolId === tool.id ? "#eff6ff" : "#fff";
-                                }}
+                                className={`cursor-pointer border-b border-gray-100 px-2.5 py-2 text-sm hover:bg-gray-100 ${
+                                  line.toolId === tool.id ? "bg-blue-50" : "bg-white"
+                                }`}
                               >
                                 {tool.name}
                               </div>
@@ -653,41 +585,26 @@ export default function CycleCreatePage() {
                           </div>
                         )}
                       </div>
-                      {/* Error messages */}
-                      {line.duplicateError && (
-                        <div style={{ fontSize: 11, color: "#dc2626", marginTop: 2 }}>
-                          {line.duplicateError}
-                        </div>
-                      )}
+                      {line.duplicateError && <div className="mt-0.5 text-xs text-red-600">{line.duplicateError}</div>}
                       {line.toolSearch.trim() && !line.showDropdown && filteredTools.length === 0 && (
-                        <div style={{ fontSize: 11, color: "#dc2626", marginTop: 2 }}>
-                          Илэрц олдсонгүй
-                        </div>
+                        <div className="mt-0.5 text-xs text-red-600">Илэрц олдсонгүй</div>
                       )}
                     </td>
-                    <td style={{ padding: "8px 4px", verticalAlign: "top", paddingTop: "12px" }}>
+                    <td className="px-1 py-2 align-top">
                       <input
                         type="number"
                         min={1}
                         value={line.producedQty}
                         onChange={(e) => updateToolLine(index, "producedQty", Math.max(1, Number(e.target.value) || 1))}
-                        style={{ width: "100%", border: "1px solid #d1d5db", borderRadius: 8, padding: "6px 8px", fontSize: 13 }}
+                        className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
                       />
                     </td>
-                    <td style={{ padding: "8px 4px", textAlign: "right", verticalAlign: "top", paddingTop: "12px" }}>
+                    <td className="px-1 py-2 text-right align-top">
                       <button
                         type="button"
                         onClick={() => removeToolLine(index)}
                         disabled={toolLines.length === 1}
-                        style={{
-                          border: "1px solid #dc2626",
-                          background: "#fff",
-                          color: "#b91c1c",
-                          borderRadius: 8,
-                          padding: "6px 10px",
-                          cursor: toolLines.length > 1 ? "pointer" : "not-allowed",
-                          fontSize: 12,
-                        }}
+                        className="rounded-lg border border-red-600 bg-white px-2.5 py-1.5 text-xs text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Устгах
                       </button>
@@ -699,21 +616,12 @@ export default function CycleCreatePage() {
           </table>
         )}
 
-        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+        <div className="mt-4 flex justify-end">
           <button
             type="button"
             onClick={submit}
             disabled={loading}
-            style={{
-              border: "none",
-              background: "#2563eb",
-              color: "#fff",
-              borderRadius: 10,
-              padding: "10px 16px",
-              cursor: loading ? "default" : "pointer",
-              fontSize: 14,
-              fontWeight: 500,
-            }}
+            className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white disabled:cursor-default disabled:opacity-60"
           >
             {loading ? "Үүсгэж байна..." : "Цикл үүсгэх"}
           </button>
