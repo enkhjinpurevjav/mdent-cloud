@@ -37,6 +37,7 @@ type HoldResponse = {
 };
 
 type PaymentStatus = "PENDING" | "PAID" | "EXPIRED";
+type DraftMatchStatus = "NEW" | "EXISTING" | "DUPLICATE_NEEDS_REVIEW";
 
 // ─── Personal info ─────────────────────────────────────────────────────────
 
@@ -113,6 +114,11 @@ export default function OnlineBookingPage() {
   // Step 1 – personal details
   const [info, setInfo] = useState<PersonalInfo>({ ovog: "", name: "", phone: "", regNo: "" });
   const [infoErrors, setInfoErrors] = useState<Partial<PersonalInfo>>({});
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [draftMatchStatus, setDraftMatchStatus] = useState<DraftMatchStatus | null>(null);
+  const [draftExpiresAt, setDraftExpiresAt] = useState<string | null>(null);
+  const [startLoading, setStartLoading] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   // Step 2 – branch + category
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -260,6 +266,43 @@ export default function OnlineBookingPage() {
     return Object.keys(errors).length === 0;
   }
 
+  async function handleStep1Continue() {
+    if (!validatePersonalInfo()) return;
+    if (!selectedBranchId) {
+      setStartError("Салбарын мэдээлэл ачааллаж байна. Түр хүлээнэ үү.");
+      return;
+    }
+
+    setStartLoading(true);
+    setStartError(null);
+    try {
+      const res = await fetch("/api/public/online-booking/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: selectedBranchId,
+          ovog: info.ovog,
+          name: info.name,
+          phone: info.phone,
+          regNo: info.regNo,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStartError(data.error || "Мэдээлэл хадгалах үед алдаа гарлаа.");
+        return;
+      }
+      setDraftId(data.draftId || null);
+      setDraftMatchStatus((data.matchStatus as DraftMatchStatus) || null);
+      setDraftExpiresAt(data.expiresAt || null);
+      setStep(2);
+    } catch {
+      setStartError("Сүлжээний алдаа. Дахин оролдоно уу.");
+    } finally {
+      setStartLoading(false);
+    }
+  }
+
   async function handleSlotClick(doctor: Doctor, slotTime: string) {
     if (!selectedBranchId || !selectedCategory || !selectedDate) return;
     const endTime = addMinutes(slotTime, selectedCategory.durationMinutes);
@@ -312,6 +355,11 @@ export default function OnlineBookingPage() {
     setBookingSummary(null);
     setPaymentStatus("PENDING");
     setGrid(null);
+    setDraftId(null);
+    setDraftMatchStatus(null);
+    setDraftExpiresAt(null);
+    setStartError(null);
+    setStartLoading(false);
     setStep(1);
   }
 
@@ -378,6 +426,7 @@ export default function OnlineBookingPage() {
                   onChange={(e) => {
                     setInfo((prev) => ({ ...prev, [field]: e.target.value }));
                     setInfoErrors((prev) => ({ ...prev, [field]: undefined }));
+                    setStartError(null);
                   }}
                 />
                 {infoErrors[field] && (
@@ -387,9 +436,14 @@ export default function OnlineBookingPage() {
             );
           })}
         </div>
+        {startError && (
+          <div style={{ marginTop: 12, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 10, fontSize: 13 }}>
+            {startError}
+          </div>
+        )}
         <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end" }}>
-          <button style={BTN_PRIMARY} onClick={() => { if (validatePersonalInfo()) setStep(2); }}>
-            Үргэлжлүүлэх →
+          <button style={{ ...BTN_PRIMARY, opacity: startLoading ? 0.7 : 1 }} onClick={handleStep1Continue} disabled={startLoading}>
+            {startLoading ? "Шалгаж байна..." : "Үргэлжлүүлэх →"}
           </button>
         </div>
       </div>
@@ -403,6 +457,21 @@ export default function OnlineBookingPage() {
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
           Та аль салбарт, ямар үйлчилгээ авахыг сонгоно уу.
         </p>
+        {draftMatchStatus === "EXISTING" && (
+          <div style={{ marginBottom: 12, borderRadius: 8, border: "1px solid #fcd34d", background: "#fffbeb", padding: "10px 12px", color: "#92400e", fontSize: 12 }}>
+            РД системд бүртгэлтэй тул одоо байгаа үйлчлүүлэгчтэй холбохоор тэмдэглэв.
+          </div>
+        )}
+        {draftMatchStatus === "DUPLICATE_NEEDS_REVIEW" && (
+          <div style={{ marginBottom: 12, borderRadius: 8, border: "1px solid #fca5a5", background: "#fef2f2", padding: "10px 12px", color: "#991b1b", fontSize: 12 }}>
+            Ижил РД-тэй олон бүртгэл илэрсэн тул reception шалгалт шаардлагатай.
+          </div>
+        )}
+        {draftId && draftExpiresAt && (
+          <p style={{ color: "#9ca3af", fontSize: 11, marginBottom: 12 }}>
+            Draft #{draftId} · хүчинтэй хугацаа: {new Date(draftExpiresAt).toLocaleTimeString()}
+          </p>
+        )}
         <div style={{ marginBottom: 18 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
             Салбар
