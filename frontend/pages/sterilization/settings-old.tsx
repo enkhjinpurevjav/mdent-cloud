@@ -283,19 +283,19 @@ const saveEditCategory = async () => {
 
   return (
  
-      <div style={{ maxWidth: 1100 }}>
-        <h1 style={{ fontSize: 18, marginBottom: 6 }}>Ариутгал → Тохиргоо</h1>
-        <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
+      <div className="max-w-[1100px]">
+        <h1 className="mb-1.5 text-[18px]">Ариутгал → Тохиргоо</h1>
+        <div className="mb-3 text-[13px] text-gray-500">
           Ариутгалд орох багажийн ангилал болон багажийн жагсаалтыг удирдана.
         </div>
 
-        {error && <div style={{ color: "#b91c1c", marginBottom: 10, fontSize: 13 }}>{error}</div>}
+        {error && <div className="mb-2.5 text-[13px] text-red-700">{error}</div>}
 
-        <div style={{ display: "flex", gap: 12, marginBottom: 12, flexWrap: "wrap" }}>
+        <div className="mb-3 flex flex-wrap gap-3">
           <select
             value={selectedBranchId}
             onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
-            style={{ flex: "0 1 220px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            className="basis-[220px] grow-0 shrink border border-gray-300 rounded-lg px-2.5 py-2 text-[13px]"
           >
             <option value="">Бүх салбар</option>
             {branches.map((b) => (
@@ -307,46 +307,46 @@ const saveEditCategory = async () => {
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder="Хайх (ангилал эсвэл багаж)..."
-            style={{ flex: "1 1 260px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+            className="basis-[260px] grow shrink border border-gray-300 rounded-lg px-2.5 py-2 text-[13px]"
           />
           <button
             type="button"
             onClick={() => void loadAll()}
             disabled={loading}
-            style={{ border: "1px solid #d1d5db", background: "#fff", borderRadius: 8, padding: "8px 10px", cursor: loading ? "default" : "pointer", fontSize: 13 }}
+            className={`border border-gray-300 bg-white rounded-lg px-2.5 py-2 text-[13px] ${loading ? "cursor-default" : "cursor-pointer"}`}
           >
             {loading ? "Ачаалж байна..." : "Шинэчлэх"}
           </button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Ангилал нэмэх</div>
-            <div style={{ display: "flex", gap: 8 }}>
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <div className="border border-gray-200 rounded-[10px] bg-white p-3">
+            <div className="mb-2 font-semibold">Ангилал нэмэх</div>
+            <div className="flex gap-2">
               <input
                 value={categoryName}
                 onChange={(e) => setCategoryName(e.target.value)}
                 placeholder="Ж: Үзлэгийн багаж"
-                style={{ flex: 1, border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                className="flex-1 border border-gray-300 rounded-lg px-2.5 py-2 text-[13px]"
               />
               <button
                 type="button"
                 onClick={() => void createCategory()}
                 disabled={loading || !categoryName.trim()}
-                style={{ border: "none", background: "#2563eb", color: "#fff", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}
+                className="border-0 bg-blue-600 text-white rounded-lg px-3 py-2 cursor-pointer"
               >
                 Нэмэх
               </button>
             </div>
           </div>
 
-          <div style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12, background: "#fff" }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Багаж нэмэх</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className="border border-gray-200 rounded-[10px] bg-white p-3">
+            <div className="mb-2 font-semibold">Багаж нэмэх</div>
+            <div className="flex flex-wrap gap-2">
               <select
                 value={selectedBranchId}
                 onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
-                style={{ flex: "1 1 180px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                className="basis-[180px] grow shrink border border-gray-300 rounded-lg px-2.5 py-2 text-[13px]"
               >
                 <option value="">Салбар сонгох</option>
                 {branches.map((b) => (
@@ -357,7 +357,7 @@ const saveEditCategory = async () => {
               <select
                 value={selectedCategoryId}
                 onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : "")}
-                style={{ flex: "1 1 180px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                className="basis-[180px] grow shrink border border-gray-300 rounded-lg px-2.5 py-2 text-[13px]"
               >
                 <option value="">Ангилал сонгох</option>
                 {categories.map((c) => (
@@ -369,7 +369,7 @@ const saveEditCategory = async () => {
                 value={itemName}
                 onChange={(e) => setItemName(e.target.value)}
                 placeholder="Багажийн нэр"
-                style={{ flex: "1 1 200px", border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                className="basis-[200px] grow shrink border border-gray-300 rounded-lg px-2.5 py-2 text-[13px]"
               />
 
               <input
@@ -378,14 +378,14 @@ const saveEditCategory = async () => {
                 value={itemQty}
                 onChange={(e) => setItemQty(Math.max(1, Number(e.target.value) || 1))}
                 placeholder="Тоо"
-                style={{ width: 110, border: "1px solid #d1d5db", borderRadius: 8, padding: "8px 10px", fontSize: 13 }}
+                className="w-[110px] border border-gray-300 rounded-lg px-2.5 py-2 text-[13px]"
               />
 
               <button
                 type="button"
                 onClick={() => void createItem()}
                 disabled={loading || !itemName.trim() || !selectedCategoryId || !selectedBranchId}
-                style={{ border: "none", background: "#16a34a", color: "#fff", borderRadius: 8, padding: "8px 12px", cursor: "pointer" }}
+                className="border-0 bg-green-600 text-white rounded-lg px-3 py-2 cursor-pointer"
               >
                 Нэмэх
               </button>
@@ -393,64 +393,37 @@ const saveEditCategory = async () => {
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="flex flex-col gap-2.5">
   {filteredCategories.map((cat) => {
     const isEditingCategory = editingCategoryId === cat.id;
 
     return (
       <div
         key={cat.id}
-        style={{
-          border: "1px solid #e5e7eb",
-          borderRadius: 10,
-          background: "#fff",
-        }}
+        className="border border-gray-200 rounded-[10px] bg-white"
       >
         {/* Category header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: 12,
-            borderBottom: "1px solid #f3f4f6",
-          }}
-        >
-          <div style={{ fontWeight: 700, flex: 1 }}>
+        <div className="flex items-center gap-2 border-b border-gray-100 p-3">
+          <div className="flex-1 font-bold">
             {isEditingCategory ? (
               <input
                 value={editCategoryName}
                 onChange={(e) => setEditCategoryName(e.target.value)}
-                style={{
-                  width: "100%",
-                  maxWidth: 420,
-                  border: "1px solid #d1d5db",
-                  borderRadius: 8,
-                  padding: "6px 8px",
-                  fontSize: 13,
-                }}
+                className="w-full max-w-[420px] border border-gray-300 rounded-lg px-2 py-1.5 text-[13px]"
               />
             ) : (
               cat.name
             )}
           </div>
 
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <div className="ml-auto flex gap-2">
             {isEditingCategory ? (
               <>
                 <button
                   type="button"
                   onClick={() => void saveEditCategory()}
                   disabled={loading}
-                  style={{
-                    border: "none",
-                    background: "#2563eb",
-                    color: "#fff",
-                    borderRadius: 8,
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
+                  className="border-0 bg-blue-600 text-white rounded-lg px-2.5 py-1.5 cursor-pointer text-xs"
                 >
                   Хадгалах
                 </button>
@@ -458,14 +431,7 @@ const saveEditCategory = async () => {
                   type="button"
                   onClick={cancelEditCategory}
                   disabled={loading}
-                  style={{
-                    border: "1px solid #d1d5db",
-                    background: "#fff",
-                    borderRadius: 8,
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
+                  className="border border-gray-300 bg-white rounded-lg px-2.5 py-1.5 cursor-pointer text-xs"
                 >
                   Болих
                 </button>
@@ -476,15 +442,7 @@ const saveEditCategory = async () => {
                   type="button"
                   onClick={() => startEditCategory(cat)}
                   disabled={loading}
-                  style={{
-                    border: "1px solid #2563eb",
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    borderRadius: 8,
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
+                  className="border border-blue-600 bg-blue-50 text-blue-600 rounded-lg px-2.5 py-1.5 cursor-pointer text-xs"
                 >
                   Засах
                 </button>
@@ -493,15 +451,7 @@ const saveEditCategory = async () => {
                   type="button"
                   onClick={() => void deleteCategory(cat.id)}
                   disabled={loading}
-                  style={{
-                    border: "1px solid #dc2626",
-                    background: "#fef2f2",
-                    color: "#b91c1c",
-                    borderRadius: 8,
-                    padding: "6px 10px",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
+                  className="border border-red-600 bg-red-50 text-red-700 rounded-lg px-2.5 py-1.5 cursor-pointer text-xs"
                 >
                   Устгах
                 </button>
@@ -511,19 +461,19 @@ const saveEditCategory = async () => {
         </div>
 
         {/* Items table */}
-        <div style={{ padding: 12 }}>
+        <div className="p-3">
           {(itemsByCategory[cat.id] || []).length === 0 ? (
-            <div style={{ fontSize: 13, color: "#6b7280" }}>
+            <div className="text-[13px] text-gray-500">
               Энэ ангилалд багаж бүртгэгдээгүй байна.
             </div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <table className="w-full border-collapse text-[13px]">
               <thead>
-                <tr style={{ color: "#6b7280", textAlign: "left" }}>
-                  <th style={{ padding: "6px 4px" }}>Багаж</th>
-                  <th style={{ padding: "6px 4px", width: 140 }}>Салбар</th>
-                  <th style={{ padding: "6px 4px", width: 90 }}>Тоо</th>
-                  <th style={{ padding: "6px 4px", width: 220 }} />
+                <tr className="text-left text-gray-500">
+                  <th className="px-1 py-1.5">Багаж</th>
+                  <th className="w-[140px] px-1 py-1.5">Салбар</th>
+                  <th className="w-[90px] px-1 py-1.5">Тоо</th>
+                  <th className="w-[220px] px-1 py-1.5" />
                 </tr>
               </thead>
               <tbody>
@@ -531,31 +481,26 @@ const saveEditCategory = async () => {
                   const isEditing = editingItemId === it.id;
 
                   return (
-                    <tr key={it.id} style={{ borderTop: "1px solid #f3f4f6" }}>
-                      <td style={{ padding: "8px 4px" }}>
+                    <tr key={it.id} className="border-t border-gray-100">
+                      <td className="px-1 py-2">
                         {isEditing ? (
                           <input
                             value={editItemName}
                             onChange={(e) => setEditItemName(e.target.value)}
-                            style={{
-                              width: "100%",
-                              border: "1px solid #d1d5db",
-                              borderRadius: 8,
-                              padding: "6px 8px",
-                            }}
+                            className="w-full border border-gray-300 rounded-lg px-2 py-1.5"
                           />
                         ) : (
                           it.name
                         )}
                       </td>
 
-                      <td style={{ padding: "8px 4px" }}>
-                        <span style={{ fontSize: 12, color: "#6b7280" }}>
+                      <td className="px-1 py-2">
+                        <span className="text-xs text-gray-500">
                           {it.branch?.name || "—"}
                         </span>
                       </td>
 
-                      <td style={{ padding: "8px 4px" }}>
+                      <td className="px-1 py-2">
                         {isEditing ? (
                           <input
                             type="number"
@@ -564,34 +509,21 @@ const saveEditCategory = async () => {
                             onChange={(e) =>
                               setEditItemQty(Math.max(1, Number(e.target.value) || 1))
                             }
-                            style={{
-                              width: 80,
-                              border: "1px solid #d1d5db",
-                              borderRadius: 8,
-                              padding: "6px 8px",
-                            }}
+                            className="w-20 border border-gray-300 rounded-lg px-2 py-1.5"
                           />
                         ) : (
                           it.quantity
                         )}
                       </td>
 
-                      <td style={{ padding: "8px 4px", textAlign: "right" }}>
+                      <td className="px-1 py-2 text-right">
                         {isEditing ? (
-                          <div style={{ display: "inline-flex", gap: 8 }}>
+                          <div className="inline-flex gap-2">
                             <button
                               type="button"
                               onClick={() => void saveEditItem()}
                               disabled={loading}
-                              style={{
-                                border: "none",
-                                background: "#2563eb",
-                                color: "#fff",
-                                borderRadius: 8,
-                                padding: "6px 10px",
-                                cursor: "pointer",
-                                fontSize: 12,
-                              }}
+                              className="border-0 bg-blue-600 text-white rounded-lg px-2.5 py-1.5 cursor-pointer text-xs"
                             >
                               Хадгалах
                             </button>
@@ -599,33 +531,18 @@ const saveEditCategory = async () => {
                               type="button"
                               onClick={cancelEditItem}
                               disabled={loading}
-                              style={{
-                                border: "1px solid #d1d5db",
-                                background: "#fff",
-                                borderRadius: 8,
-                                padding: "6px 10px",
-                                cursor: "pointer",
-                                fontSize: 12,
-                              }}
+                              className="border border-gray-300 bg-white rounded-lg px-2.5 py-1.5 cursor-pointer text-xs"
                             >
                               Болих
                             </button>
                           </div>
                         ) : (
-                          <div style={{ display: "inline-flex", gap: 8 }}>
+                          <div className="inline-flex gap-2">
                             <button
                               type="button"
                               onClick={() => startEditItem(it)}
                               disabled={loading}
-                              style={{
-                                border: "1px solid #2563eb",
-                                background: "#eff6ff",
-                                color: "#2563eb",
-                                borderRadius: 8,
-                                padding: "6px 10px",
-                                cursor: "pointer",
-                                fontSize: 12,
-                              }}
+                              className="border border-blue-600 bg-blue-50 text-blue-600 rounded-lg px-2.5 py-1.5 cursor-pointer text-xs"
                             >
                               Засах
                             </button>
@@ -633,15 +550,7 @@ const saveEditCategory = async () => {
                               type="button"
                               onClick={() => void deleteItem(it.id)}
                               disabled={loading}
-                              style={{
-                                border: "1px solid #dc2626",
-                                background: "#fff",
-                                color: "#b91c1c",
-                                borderRadius: 8,
-                                padding: "6px 10px",
-                                cursor: "pointer",
-                                fontSize: 12,
-                              }}
+                              className="border border-red-600 bg-white text-red-700 rounded-lg px-2.5 py-1.5 cursor-pointer text-xs"
                             >
                               Устгах
                             </button>
@@ -661,7 +570,7 @@ const saveEditCategory = async () => {
 </div>
 
         {filteredCategories.length === 0 && !loading && (
-          <div style={{ fontSize: 13, color: "#6b7280" }}>Ангилал олдсонгүй.</div>
+          <div className="text-[13px] text-gray-500">Ангилал олдсонгүй.</div>
         )}
       </div>
    

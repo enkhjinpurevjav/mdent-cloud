@@ -179,59 +179,29 @@ export default function SterilizationSettingsPage() {
   };
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 24, marginBottom: 8, fontWeight: 700 }}>
-        Ариутгалын багажийн тохиргоо
-      </h1>
-      <div style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
-        Салбар бүрт харгалзах ариутгалын багажуудыг бүртгэж удирдана.
-      </div>
+    <div className="mx-auto w-full max-w-[1400px]">
+      <h1 className="mb-2 text-2xl font-bold">Ариутгалын багажийн тохиргоо</h1>
+      <p className="mb-4 text-sm text-gray-500">Салбар бүрт харгалзах ариутгалын багажуудыг бүртгэж удирдана.</p>
 
       {error && (
-        <div
-          style={{
-            background: "#fee",
-            color: "#b91c1c",
-            padding: 12,
-            borderRadius: 8,
-            marginBottom: 12,
-            fontSize: 14,
-          }}
-        >
+        <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
       {successMsg && (
-        <div
-          style={{
-            background: "#d1fae5",
-            color: "#065f46",
-            padding: 12,
-            borderRadius: 8,
-            marginBottom: 12,
-            fontSize: 14,
-          }}
-        >
+        <div className="mb-3 rounded-lg bg-emerald-100 p-3 text-sm text-emerald-800">
           {successMsg}
         </div>
       )}
 
       {/* Branch selector and filter */}
-      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
-        <div style={{ flex: "0 0 300px" }}>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-            Салбар
-          </label>
+      <div className="mb-5 flex flex-wrap gap-3">
+        <div className="w-full md:w-[300px] md:flex-none">
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700">Салбар</label>
           <select
             value={selectedBranchId}
             onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
-            style={{
-              width: "100%",
-              border: "1px solid #d1d5db",
-              borderRadius: 8,
-              padding: "8px 10px",
-              fontSize: 14,
-            }}
+            className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
           >
             <option value="">Бүгд</option>
             {branches.map((b) => (
@@ -241,53 +211,27 @@ export default function SterilizationSettingsPage() {
             ))}
           </select>
         </div>
-        <div style={{ flex: "1 1 300px" }}>
-          <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-            Хайлт
-          </label>
+        <div className="min-w-[280px] flex-1">
+          <label className="mb-1.5 block text-sm font-semibold text-gray-700">Хайлт</label>
           <input
             value={filterText}
             onChange={(e) => setFilterText(e.target.value)}
             placeholder="Багажийн нэрээр хайх..."
-            style={{
-              width: "100%",
-              border: "1px solid #d1d5db",
-              borderRadius: 8,
-              padding: "8px 10px",
-              fontSize: 14,
-            }}
+            className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
           />
         </div>
       </div>
 
       {/* Create item form */}
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 12,
-          padding: 20,
-          marginBottom: 20,
-        }}
-      >
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>
-          Шинэ багаж нэмэх
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "250px 1fr 100px 140px", gap: 12, alignItems: "end" }}>
+      <div className="mb-5 rounded-xl border border-gray-200 bg-white p-5">
+        <div className="mb-3 text-base font-semibold">Шинэ багаж нэмэх</div>
+        <div className="grid grid-cols-1 items-end gap-3 lg:grid-cols-[250px_1fr_100px_140px]">
           <div>
-            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-              Салбар *
-            </label>
+            <label className="mb-1 block text-xs text-gray-500">Салбар *</label>
             <select
               value={selectedBranchId}
               onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : "")}
-              style={{
-                width: "100%",
-                border: "1px solid #d1d5db",
-                borderRadius: 8,
-                padding: "8px 10px",
-                fontSize: 14,
-              }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             >
               <option value="">Сонгох...</option>
               {branches.map((b) => (
@@ -298,54 +242,29 @@ export default function SterilizationSettingsPage() {
             </select>
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-              Багажийн нэр *
-            </label>
+            <label className="mb-1 block text-xs text-gray-500">Багажийн нэр *</label>
             <input
               value={itemName}
               onChange={(e) => setItemName(e.target.value)}
               placeholder="Ж: Үзлэгийн багаж"
-              style={{
-                width: "100%",
-                border: "1px solid #d1d5db",
-                borderRadius: 8,
-                padding: "8px 10px",
-                fontSize: 14,
-              }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-              Үндсэн тоо *
-            </label>
+            <label className="mb-1 block text-xs text-gray-500">Үндсэн тоо *</label>
             <input
               type="number"
               min={1}
               value={itemQty}
               onChange={(e) => setItemQty(Math.max(1, Number(e.target.value) || 1))}
-              style={{
-                width: "100%",
-                border: "1px solid #d1d5db",
-                borderRadius: 8,
-                padding: "8px 10px",
-                fontSize: 14,
-              }}
+              className="w-full rounded-lg border border-gray-300 px-2.5 py-2 text-sm"
             />
           </div>
           <button
             type="button"
             onClick={createItem}
             disabled={loading}
-            style={{
-              background: "#2563eb",
-              color: "#fff",
-              border: "none",
-              borderRadius: 8,
-              padding: "9px 16px",
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: loading ? "not-allowed" : "pointer",
-            }}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "..." : "Нэмэх"}
           </button>
@@ -353,146 +272,88 @@ export default function SterilizationSettingsPage() {
       </div>
 
       {/* Items list */}
-      <div
-        style={{
-          background: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "14px 16px",
-            borderBottom: "1px solid #e5e7eb",
-            fontSize: 16,
-            fontWeight: 600,
-          }}
-        >
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 px-4 py-3 text-base font-semibold">
           Багажуудын жагсаалт ({filteredItems.length})
         </div>
         
         {filteredItems.length === 0 ? (
-          <div style={{ padding: 20, textAlign: "center", color: "#6b7280", fontSize: 14 }}>
+          <div className="p-5 text-center text-sm text-gray-500">
             {loading ? "Ачаалж байна..." : "Багаж олдсонгүй"}
           </div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr style={{ background: "#f9fafb", textAlign: "left" }}>
-                <th style={{ padding: "10px 16px", fontWeight: 600 }}>Салбар</th>
-                <th style={{ padding: "10px 16px", fontWeight: 600 }}>Багажийн нэр</th>
-                <th style={{ padding: "10px 16px", fontWeight: 600, width: 120 }}>Үндсэн тоо</th>
-                <th style={{ padding: "10px 16px", fontWeight: 600, width: 200 }}>Үйлдэл</th>
+              <tr className="bg-gray-50 text-left">
+                <th className="px-4 py-2.5 font-semibold">Салбар</th>
+                <th className="px-4 py-2.5 font-semibold">Багажийн нэр</th>
+                <th className="w-[120px] px-4 py-2.5 font-semibold">Үндсэн тоо</th>
+                <th className="w-[200px] px-4 py-2.5 font-semibold">Үйлдэл</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map((item) => {
                 const isEditing = editingItemId === item.id;
                 return (
-                  <tr key={item.id} style={{ borderTop: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "10px 16px" }}>
+                  <tr key={item.id} className="border-t border-gray-100">
+                    <td className="px-4 py-2.5">
                       {item.branch?.name || `Branch #${item.branchId}`}
                     </td>
-                    <td style={{ padding: "10px 16px" }}>
+                    <td className="px-4 py-2.5">
                       {isEditing ? (
                         <input
                           value={editItemName}
                           onChange={(e) => setEditItemName(e.target.value)}
-                          style={{
-                            width: "100%",
-                            border: "1px solid #d1d5db",
-                            borderRadius: 6,
-                            padding: "6px 8px",
-                            fontSize: 13,
-                          }}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs"
                         />
                       ) : (
-                        <span style={{ fontWeight: 600 }}>{item.name}</span>
+                        <span className="font-semibold">{item.name}</span>
                       )}
                     </td>
-                    <td style={{ padding: "10px 16px" }}>
+                    <td className="px-4 py-2.5">
                       {isEditing ? (
                         <input
                           type="number"
                           min={1}
                           value={editItemQty}
                           onChange={(e) => setEditItemQty(Math.max(1, Number(e.target.value) || 1))}
-                          style={{
-                            width: "100%",
-                            border: "1px solid #d1d5db",
-                            borderRadius: 6,
-                            padding: "6px 8px",
-                            fontSize: 13,
-                          }}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs"
                         />
                       ) : (
                         <span>{item.baselineAmount}</span>
                       )}
                     </td>
-                    <td style={{ padding: "10px 16px" }}>
+                    <td className="px-4 py-2.5">
                       {isEditing ? (
-                        <div style={{ display: "flex", gap: 8 }}>
+                        <div className="flex gap-2">
                           <button
                             type="button"
                             onClick={saveEditItem}
-                            style={{
-                              background: "#16a34a",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              padding: "6px 12px",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
+                            className="rounded-md bg-green-600 px-3 py-1.5 text-xs text-white"
                           >
                             Хадгалах
                           </button>
                           <button
                             type="button"
                             onClick={cancelEditItem}
-                            style={{
-                              background: "#6b7280",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              padding: "6px 12px",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
+                            className="rounded-md bg-gray-500 px-3 py-1.5 text-xs text-white"
                           >
                             Болих
                           </button>
                         </div>
                       ) : (
-                        <div style={{ display: "flex", gap: 8 }}>
+                        <div className="flex gap-2">
                           <button
                             type="button"
                             onClick={() => startEditItem(item)}
-                            style={{
-                              background: "#f59e0b",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              padding: "6px 12px",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
+                            className="rounded-md bg-amber-500 px-3 py-1.5 text-xs text-white"
                           >
                             Засах
                           </button>
                           <button
                             type="button"
                             onClick={() => deleteItem(item.id)}
-                            style={{
-                              background: "#dc2626",
-                              color: "#fff",
-                              border: "none",
-                              borderRadius: 6,
-                              padding: "6px 12px",
-                              fontSize: 12,
-                              cursor: "pointer",
-                            }}
+                            className="rounded-md bg-red-600 px-3 py-1.5 text-xs text-white"
                           >
                             Устгах
                           </button>
