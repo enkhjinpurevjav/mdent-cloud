@@ -79,9 +79,11 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
 
   const [branches, setBranches] = useState<{ id: string; name: string }[]>([]);
 
-  const [date, setDate] = useState<string>(today());
+  const [dateFrom, setDateFrom] = useState<string>(today());
+  const [dateTo, setDateTo] = useState<string>(today());
   const [branchId, setBranchId] = useState<string>("");
   const [status, setStatus] = useState<string>("ready_to_pay");
+  const [searchNameInput, setSearchNameInput] = useState<string>("");
   const [searchName, setSearchName] = useState<string>("");
 
   const [rows, setRows] = useState<AppointmentRow[]>([]);
@@ -156,11 +158,12 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
-    params.set("date", date);
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
     if (branchId) params.set("branchId", branchId);
     params.set("status", status);
     return params.toString();
-  }, [date, branchId, status]);
+  }, [dateFrom, dateTo, branchId, status]);
 
   // Fetch appointments when query changes
   useEffect(() => {
@@ -178,8 +181,12 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
   // Reset page and search when filters change
   useEffect(() => {
     setPage(1);
-    setSearchName("");
   }, [queryString]);
+
+  const applySearchFilter = () => {
+    setSearchName(searchNameInput.trim());
+    setPage(1);
+  };
 
   const filteredRows = useMemo(() => {
     const q = searchName.trim().toLowerCase();
@@ -313,13 +320,22 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
 
       {/* Filters */}
       <div className="flex flex-col md:flex-row gap-3 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        {/* Date */}
+        {/* Date range */}
         <div className="flex flex-col gap-1">
-          <label className="text-xs text-gray-500 font-medium">Огноо</label>
+          <label className="text-xs text-gray-500 font-medium">Эхлэх огноо</label>
           <input
             type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-500 font-medium">Дуусах огноо</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
         </div>
@@ -369,11 +385,26 @@ export default function VisitsListPage({ hideBranchSelector = false }: Props) {
           <label className="text-xs text-gray-500 font-medium">Хайх</label>
           <input
             type="text"
-            value={searchName}
-            onChange={(e) => { setSearchName(e.target.value); setPage(1); }}
+            value={searchNameInput}
+            onChange={(e) => setSearchNameInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                applySearchFilter();
+              }
+            }}
             placeholder="Нэрээр хайх…"
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 min-w-[160px]"
           />
+        </div>
+        <div className="flex items-end">
+          <button
+            type="button"
+            onClick={applySearchFilter}
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Шүүх
+          </button>
         </div>
       </div>
 

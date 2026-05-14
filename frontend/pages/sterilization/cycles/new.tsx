@@ -48,7 +48,7 @@ type Machine = {
 type ToolLine = {
   id: string; // Stable unique identifier for React key
   toolId: number | "";
-  producedQty: number;
+  producedQty: number | "";
   toolSearch: string; // Search query for filtering tools
   showDropdown: boolean; // Whether to show the dropdown
   duplicateError: string; // Error message for duplicate selection
@@ -88,7 +88,7 @@ export default function CycleCreatePage() {
   const [result, setResult] = useState<"PASS" | "FAIL">("PASS");
   const [operator, setOperator] = useState("");
   const [notes, setNotes] = useState("");
-  const [toolLines, setToolLines] = useState<ToolLine[]>([{ id: generateId(), toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
+  const [toolLines, setToolLines] = useState<ToolLine[]>([{ id: generateId(), toolId: "", producedQty: "", toolSearch: "", showDropdown: false, duplicateError: "" }]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -195,7 +195,7 @@ export default function CycleCreatePage() {
   };
 
   const addToolLine = () => {
-    setToolLines([...toolLines, { id: generateId(), toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
+    setToolLines([...toolLines, { id: generateId(), toolId: "", producedQty: "", toolSearch: "", showDropdown: false, duplicateError: "" }]);
   };
 
   const removeToolLine = (index: number) => {
@@ -254,7 +254,9 @@ export default function CycleCreatePage() {
       return setError("Циклын код давхардсан байна.");
     }
 
-    const validLines = toolLines.filter((line) => line.toolId && line.producedQty >= 1);
+    const validLines = toolLines.filter(
+      (line) => line.toolId && typeof line.producedQty === "number" && line.producedQty >= 1
+    );
     if (validLines.length === 0) {
       return setError("Дор хаяж 1 багаж нэмнэ үү.");
     }
@@ -272,7 +274,7 @@ export default function CycleCreatePage() {
         notes: notes.trim() || undefined,
         toolLines: validLines.map((line) => ({
           toolId: Number(line.toolId),
-          producedQty: Math.floor(line.producedQty),
+          producedQty: Math.floor(Number(line.producedQty)),
         })),
       };
 
@@ -317,7 +319,7 @@ export default function CycleCreatePage() {
         setOperator("");
       }
       setNotes("");
-      setToolLines([{ id: generateId(), toolId: "", producedQty: 1, toolSearch: "", showDropdown: false, duplicateError: "" }]);
+      setToolLines([{ id: generateId(), toolId: "", producedQty: "", toolSearch: "", showDropdown: false, duplicateError: "" }]);
       // Reset machine to first one if available
       if (machines.length > 0) {
         setMachineId(machines[0].id);
@@ -544,7 +546,7 @@ export default function CycleCreatePage() {
               <tr className="border-b border-gray-200 text-left text-gray-500">
                 <th className="px-1 py-2">№</th>
                 <th className="px-1 py-2">Багаж</th>
-                <th className="w-[140px] px-1 py-2">Үйлдвэрлэсэн тоо</th>
+                <th className="w-[140px] px-1 py-2">Багажны тоо</th>
                 <th className="w-[100px] px-1 py-2"></th>
               </tr>
             </thead>
@@ -571,6 +573,7 @@ export default function CycleCreatePage() {
                             });
                           }}
                           onFocus={() => patchToolLine(index, { showDropdown: true })}
+                          onBlur={() => patchToolLine(index, { showDropdown: false })}
                           onKeyDown={(e) => {
                             if (e.key === "Escape") {
                               patchToolLine(index, { showDropdown: false });
@@ -607,10 +610,19 @@ export default function CycleCreatePage() {
                     </td>
                     <td className="px-1 py-2 align-top">
                       <input
-                        type="number"
-                        min={1}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={line.producedQty}
-                        onChange={(e) => updateToolLine(index, "producedQty", Math.max(1, Number(e.target.value) || 1))}
+                        onChange={(e) => {
+                          const digits = e.target.value.replace(/[^\d]/g, "");
+                          if (!digits) {
+                            updateToolLine(index, "producedQty", "");
+                            return;
+                          }
+                          updateToolLine(index, "producedQty", Math.max(1, Number.parseInt(digits, 10)));
+                        }}
+                        placeholder="Тоо"
                         className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
                       />
                     </td>
