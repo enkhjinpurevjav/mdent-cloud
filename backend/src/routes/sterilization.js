@@ -54,6 +54,15 @@ function normalizeCodePart(value, fallback = "X") {
   return cleaned || fallback;
 }
 
+function formatUserSnapshotLabel(user) {
+  const ovog = String(user?.ovog || "").trim();
+  const name = String(user?.name || "").trim();
+  if (ovog && name) return `${ovog.charAt(0)}.${name}`;
+  if (name) return name;
+  if (user?.email) return String(user.email);
+  return `User #${user?.id || ""}`.trim();
+}
+
 async function generateAutoRunNumber({ machineNumber, exists }) {
   const now = new Date();
   const y = now.getFullYear();
@@ -152,7 +161,8 @@ router.post("/sterilization/returns", async (req, res) => {
     const dateStr = String(req.body?.date || "").trim();
     const time = String(req.body?.time || "").trim();
     const doctorId = Number(req.body?.doctorId);
-    const nurseName = String(req.body?.nurseName || "").trim();
+    const nurseUserId = Number(req.body?.nurseUserId);
+    const nurseNameSnapshotInput = String(req.body?.nurseNameSnapshot || "").trim();
     const notes = req.body?.notes ? String(req.body.notes).trim() : null;
 
     const lines = Array.isArray(req.body?.lines) ? req.body.lines : [];
@@ -165,17 +175,54 @@ router.post("/sterilization/returns", async (req, res) => {
     if (!isValidHHmm(time)) return res.status(400).json({ error: "time is required (HH:mm)" });
 
     if (!doctorId) return res.status(400).json({ error: "doctorId is required" });
-    if (!nurseName) return res.status(400).json({ error: "nurseName is required" });
+    if (!nurseUserId) return res.status(400).json({ error: "nurseUserId is required" });
 
     if (lines.length === 0) {
       return res.status(400).json({ error: "lines are required" });
     }
 
     // Validate doctor exists and is doctor
-    const doctor = await prisma.user.findUnique({ where: { id: doctorId }, select: { id: true, role: true } });
+    const doctor = await prisma.user.findUnique({
+      where: { id: doctorId },
+      select: {
+        id: true,
+        role: true,
+        branchId: true,
+        doctorBranches: { select: { branchId: true } },
+      },
+    });
     if (!doctor || doctor.role !== "doctor") {
       return res.status(400).json({ error: "Invalid doctorId" });
     }
+    const doctorInBranch =
+      doctor.branchId === branchId ||
+      (doctor.doctorBranches || []).some((b) => b.branchId === branchId);
+    if (!doctorInBranch) {
+      return res.status(400).json({ error: "Doctor does not belong to the selected branch" });
+    }
+
+    const nurse = await prisma.user.findUnique({
+      where: { id: nurseUserId },
+      select: {
+        id: true,
+        role: true,
+        branchId: true,
+        name: true,
+        ovog: true,
+        email: true,
+        nurseBranches: { select: { branchId: true } },
+      },
+    });
+    if (!nurse || nurse.role !== "nurse") {
+      return res.status(400).json({ error: "Invalid nurseUserId" });
+    }
+    const nurseInBranch =
+      nurse.branchId === branchId ||
+      (nurse.nurseBranches || []).some((b) => b.branchId === branchId);
+    if (!nurseInBranch) {
+      return res.status(400).json({ error: "Nurse does not belong to the selected branch" });
+    }
+    const nurseNameSnapshot = nurseNameSnapshotInput || formatUserSnapshotLabel(nurse);
 
     // Keep only qty>0 (your requirement)
     const normalized = [];
@@ -213,7 +260,9 @@ router.post("/sterilization/returns", async (req, res) => {
         date,
         time,
         doctorId,
-        nurseName,
+        nurseUserId,
+        nurseNameSnapshot,
+        nurseName: nurseNameSnapshot,
         notes,
         lines: {
           create: normalized.map((x) => ({
@@ -225,6 +274,7 @@ router.post("/sterilization/returns", async (req, res) => {
       include: {
         branch: { select: { id: true, name: true } },
         doctor: { select: { id: true, name: true, ovog: true, email: true } },
+        nurse: { select: { id: true, name: true, ovog: true, email: true } },
         lines: { include: { tool: { select: { id: true, name: true } } } },
       },
     });
@@ -244,6 +294,26 @@ router.get("/sterilization/returns", async (req, res) => {
     const doctorId = req.query.doctorId ? Number(req.query.doctorId) : null;
 
     if (!branchId) return res.status(400).json({ error: "branchId is required" });
+
+    if (doctorId) {
+      const doctor = await prisma.user.findUnique({
+        where: { id: doctorId },
+        select: {
+          id: true,
+          role: true,
+          branchId: true,
+          doctorBranches: { select: { branchId: true } },
+        },
+      });
+      const doctorInBranch =
+        !!doctor &&
+        doctor.role === "doctor" &&
+        (doctor.branchId === branchId ||
+          (doctor.doctorBranches || []).some((b) => b.branchId === branchId));
+      if (!doctorInBranch) {
+        return res.status(400).json({ error: "doctorId does not belong to the selected branch" });
+      }
+    }
 
     let rangeStart = null;
     let rangeEnd = null;
@@ -277,6 +347,7 @@ router.get("/sterilization/returns", async (req, res) => {
       include: {
         branch: { select: { id: true, name: true } },
         doctor: { select: { id: true, name: true, ovog: true, email: true } },
+        nurse: { select: { id: true, name: true, ovog: true, email: true } },
         lines: { include: { tool: { select: { id: true, name: true } } } },
       },
     });
@@ -1011,10 +1082,45 @@ router.get("/sterilization/cycles", async (req, res) => {
   try {
     const branchId = req.query.branchId ? Number(req.query.branchId) : null;
     const result = req.query.result ? String(req.query.result).toUpperCase() : null;
+    const fromStr = req.query.from ? String(req.query.from) : "";
+    const toStr = req.query.to ? String(req.query.to) : "";
+
+    let rangeStart = null;
+    let rangeEnd = null;
+
+    if (fromStr) {
+      rangeStart = parseYmdToLocalMidnight(fromStr);
+      if (!rangeStart) {
+        return res.status(400).json({ error: "from is invalid (YYYY-MM-DD)" });
+      }
+    }
+    if (toStr) {
+      const toMidnight = parseYmdToLocalMidnight(toStr);
+      if (!toMidnight) {
+        return res.status(400).json({ error: "to is invalid (YYYY-MM-DD)" });
+      }
+      rangeEnd = new Date(
+        toMidnight.getFullYear(),
+        toMidnight.getMonth(),
+        toMidnight.getDate(),
+        23,
+        59,
+        59,
+        999
+      );
+    }
     
     const where = {
       ...(branchId ? { branchId } : {}),
       ...(result ? { result } : {}),
+      ...(rangeStart || rangeEnd
+        ? {
+            completedAt: {
+              ...(rangeStart ? { gte: rangeStart } : {}),
+              ...(rangeEnd ? { lte: rangeEnd } : {}),
+            },
+          }
+        : {}),
     };
 
     const cycles = await prisma.autoclaveCycle.findMany({
@@ -1109,10 +1215,50 @@ router.get("/sterilization/mismatches", async (req, res) => {
   try {
     const encounterId = req.query.encounterId ? Number(req.query.encounterId) : null;
     const status = req.query.status ? String(req.query.status).toUpperCase() : null;
+    const branchId = req.query.branchId ? Number(req.query.branchId) : null;
+    const patientName = req.query.patientName ? String(req.query.patientName).trim() : "";
+    const visitDate = req.query.visitDate ? String(req.query.visitDate).trim() : "";
+
+    let visitDateRange = null;
+    if (visitDate) {
+      const visitDateStart = parseYmdToLocalMidnight(visitDate);
+      if (!visitDateStart) {
+        return res.status(400).json({ error: "visitDate is invalid (YYYY-MM-DD)" });
+      }
+      visitDateRange = {
+        gte: visitDateStart,
+        lte: new Date(
+          visitDateStart.getFullYear(),
+          visitDateStart.getMonth(),
+          visitDateStart.getDate(),
+          23,
+          59,
+          59,
+          999
+        ),
+      };
+    }
+
+    const encounterWhere = {};
+    if (patientName) {
+      encounterWhere.patientBook = {
+        patient: {
+          OR: [
+            { name: { contains: patientName, mode: "insensitive" } },
+            { ovog: { contains: patientName, mode: "insensitive" } },
+          ],
+        },
+      };
+    }
+    if (visitDateRange) {
+      encounterWhere.visitDate = visitDateRange;
+    }
     
     const where = {
       ...(encounterId ? { encounterId } : {}),
       ...(status ? { status } : {}),
+      ...(branchId ? { branchId } : {}),
+      ...(Object.keys(encounterWhere).length > 0 ? { encounter: encounterWhere } : {}),
     };
 
     const mismatches = await prisma.sterilizationMismatch.findMany({
@@ -1737,8 +1883,11 @@ router.post("/sterilization/disposals", async (req, res) => {
       const toolLineId = Number(line.toolLineId);
       const quantity = Number(line.quantity);
 
-      if (!toolLineId || !quantity || quantity <= 0) {
-        return res.status(400).json({ error: "Invalid line: toolLineId and quantity must be positive" });
+      if (!toolLineId) {
+        return res.status(400).json({ error: "toolLineId is required" });
+      }
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        return res.status(400).json({ error: "quantity must be a positive integer" });
       }
 
       // Check remaining availability
@@ -1777,7 +1926,7 @@ router.post("/sterilization/disposals", async (req, res) => {
         lines: {
           create: lines.map((line) => ({
             toolLineId: Number(line.toolLineId),
-            quantity: Number(line.quantity),
+            quantity: Number.parseInt(String(line.quantity), 10),
           })),
         },
       },

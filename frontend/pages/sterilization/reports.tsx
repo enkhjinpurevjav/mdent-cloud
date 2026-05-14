@@ -46,17 +46,6 @@ function ymd(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return new Intl.DateTimeFormat("mn-MN", {
-    timeZone: CLINIC_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d);
-}
-
 function formatDateTime(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
@@ -173,6 +162,10 @@ export default function SterilizationReportsPage() {
     notes: string;
   }) => {
     if (!branchId || !disposalToolLine) return;
+    if (!Number.isInteger(data.quantity) || data.quantity <= 0) {
+      alert("Тоо ширхэг нь бүхэл эерэг тоо байх ёстой.");
+      return;
+    }
 
     try {
       const res = await fetch("/api/sterilization/disposals", {
@@ -436,7 +429,7 @@ function DisposalModal({
       return;
     }
 
-    if (quantity <= 0 || quantity > toolLine.remaining) {
+    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > toolLine.remaining) {
       alert(`Тоо ширхэг 1-с ${toolLine.remaining} хооронд байх ёстой.`);
       return;
     }
@@ -513,10 +506,14 @@ function DisposalModal({
               <input
                 type="number"
                 value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
+                onChange={(e) => {
+                  const parsed = Number.parseInt(e.target.value, 10);
+                  setQuantity(Number.isNaN(parsed) ? 0 : parsed);
+                }}
                 required
                 min={1}
                 max={toolLine.remaining}
+                step={1}
                 className="w-full rounded-lg border border-gray-300 px-2.5 py-2"
               />
             </div>
