@@ -101,9 +101,9 @@ export default function BurCyclesPage() {
 
   // Form fields
   const [branchId, setBranchId] = useState<number | "">("");
-  const [sterilizationRunNumber, setSterilizationRunNumber] = useState("");
-  const [runNumberWarning, setRunNumberWarning] = useState("");
-  const [lastCheckedRunNumber, setLastCheckedRunNumber] = useState("");
+  const [code, setCode] = useState("");
+  const [codeWarning, setCodeWarning] = useState("");
+  const [lastCheckedCode, setLastCheckedCode] = useState("");
   const [machineId, setMachineId] = useState<number | "">("");
   const [startedAt, setStartedAt] = useState(formatDateTime(new Date()));
   const [pressure, setPressure] = useState("0247");
@@ -150,8 +150,8 @@ export default function BurCyclesPage() {
     if (!branchId) {
       setMachines([]);
       setMachineId("");
-      setRunNumberWarning("");
-      setLastCheckedRunNumber("");
+      setCodeWarning("");
+      setLastCheckedCode("");
       setSterilizationUsers([]);
       setOperator("");
       return;
@@ -161,8 +161,8 @@ export default function BurCyclesPage() {
     finishedAtOverridden.current = false;
     const newFinishedAt = addMinutes(startedAtRef.current || formatDateTime(new Date()), 10);
     setFinishedAt(newFinishedAt);
-    setRunNumberWarning("");
-    setLastCheckedRunNumber("");
+    setCodeWarning("");
+    setLastCheckedCode("");
 
     (async () => {
       try {
@@ -223,36 +223,35 @@ export default function BurCyclesPage() {
     }
   };
 
-  const checkRunNumberUniqueness = async (forceCheck = false) => {
-    if (!machineId || !sterilizationRunNumber.trim()) {
-      setRunNumberWarning("");
+  const checkCodeUniqueness = async (forceCheck = false) => {
+    if (!branchId || !code.trim()) {
+      setCodeWarning("");
       return true;
     }
 
-    // Avoid duplicate checks
-    if (!forceCheck && sterilizationRunNumber.trim() === lastCheckedRunNumber) {
-      return !runNumberWarning;
+    if (!forceCheck && code.trim() === lastCheckedCode) {
+      return !codeWarning;
     }
 
-    setLastCheckedRunNumber(sterilizationRunNumber.trim());
+    setLastCheckedCode(code.trim());
 
     try {
       const res = await fetch(
-        `/api/sterilization/bur-cycles/check-run-number?machineId=${machineId}&sterilizationRunNumber=${encodeURIComponent(
-          sterilizationRunNumber.trim()
+        `/api/sterilization/bur-cycles/check-code?branchId=${branchId}&code=${encodeURIComponent(
+          code.trim()
         )}`
       );
       const data = await res.json().catch(() => ({ exists: false }));
 
       if (data.exists) {
-        setRunNumberWarning("⚠️ Энэ ариутгалын дугаар аль хэдийн ашиглагдсан байна");
+        setCodeWarning("⚠️ Энэ циклийн код аль хэдийн ашиглагдсан байна");
         return false;
       } else {
-        setRunNumberWarning("");
+        setCodeWarning("");
         return true;
       }
     } catch {
-      setRunNumberWarning("");
+      setCodeWarning("");
       return true;
     }
   };
@@ -263,15 +262,15 @@ export default function BurCyclesPage() {
 
     // Validation
     if (!branchId) return setError("Салбар сонгоно уу.");
-    if (!sterilizationRunNumber.trim()) return setError("Ариутгалын дугаар оруулна уу.");
+    if (!code.trim()) return setError("Циклын код оруулна уу.");
     if (!machineId) return setError("Машин сонгоно уу.");
     if (!startedAt) return setError("Эхэлсэн цаг оруулна уу.");
     if (!finishedAt) return setError("Дууссан цаг оруулна уу.");
     if (!operator.trim()) return setError("Сувилагчийн нэр оруулна уу.");
-    if (runNumberWarning) return setError("Ариутгалын дугаар давхардсан байна.");
+    if (codeWarning) return setError("Циклын код давхардсан байна.");
 
-    const runNumberOk = await checkRunNumberUniqueness(true);
-    if (!runNumberOk) return setError("Ариутгалын дугаар давхардсан байна.");
+    const codeOk = await checkCodeUniqueness(true);
+    if (!codeOk) return setError("Циклын код давхардсан байна.");
 
     if (fastBurQty === 0 && slowBurQty === 0) {
       return setError("Хурдан эсвэл удаан өрмийн тоо дор хаяж нэг нь 0-ээс их байх ёстой.");
@@ -284,7 +283,7 @@ export default function BurCyclesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           branchId,
-          sterilizationRunNumber: sterilizationRunNumber.trim(),
+          code: code.trim(),
           machineId,
           startedAt: toNaiveTimestampFromLocal(startedAt),
           pressure: pressure.trim() || null,
@@ -304,9 +303,13 @@ export default function BurCyclesPage() {
       const data = await res.json();
 
       if (res.ok) {
-        setSuccessMsg(`✅ Өрмийн бүртгэл амжилттай үүслээ. Код: ${data?.code || "-"}`);
+        setSuccessMsg(
+          `✅ Өрмийн бүртгэл амжилттай үүслээ. Код: ${data?.code || "-"}${
+            data?.sterilizationRunNumber ? `, Ариутгалын дугаар: ${data.sterilizationRunNumber}` : ""
+          }`
+        );
         // Reset form
-        setSterilizationRunNumber("");
+        setCode("");
         setPressure("0247");
         setTemperature("138");
         setNotes("");
@@ -317,8 +320,8 @@ export default function BurCyclesPage() {
         finishedAtOverridden.current = false;
         setFinishedAt(addMinutes(newStartedAt, 10));
         setRemovedFromAutoclaveAt("");
-        setRunNumberWarning("");
-        setLastCheckedRunNumber("");
+        setCodeWarning("");
+        setLastCheckedCode("");
         // Reload list
         loadBurCycles();
       } else {
@@ -378,11 +381,7 @@ export default function BurCyclesPage() {
             </label>
             <select
               value={machineId}
-              onChange={(e) => {
-                setMachineId(e.target.value ? Number(e.target.value) : "");
-                setRunNumberWarning("");
-                setLastCheckedRunNumber("");
-              }}
+              onChange={(e) => setMachineId(e.target.value ? Number(e.target.value) : "")}
               className="w-full rounded border border-[#ccc] p-2 text-sm"
               disabled={!branchId}
             >
@@ -398,34 +397,34 @@ export default function BurCyclesPage() {
           {/* Cycle Code */}
           <div>
             <label className="mb-[5px] block font-bold">
-              Циклын код
+              Циклын код <span className="text-[red]">*</span>
             </label>
             <input
               type="text"
-              value="Автоматаар үүснэ"
-              readOnly
-              className="w-full cursor-default rounded border border-[#ccc] bg-gray-100 p-2 text-sm text-gray-500"
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                setCodeWarning("");
+                setLastCheckedCode("");
+              }}
+              onBlur={() => void checkCodeUniqueness()}
+              className="w-full rounded border border-[#ccc] p-2 text-sm"
+              placeholder="Циклын код"
             />
+            {codeWarning && <div className="mt-[3px] text-xs text-[#ff9800]">{codeWarning}</div>}
           </div>
 
           {/* Sterilization Run Number */}
           <div>
             <label className="mb-[5px] block font-bold">
-              Ариутгалын дугаар <span className="text-[red]">*</span>
+              Ариутгалын дугаар
             </label>
             <input
               type="text"
-              value={sterilizationRunNumber}
-              onChange={(e) => {
-                setSterilizationRunNumber(e.target.value);
-                setRunNumberWarning("");
-                setLastCheckedRunNumber("");
-              }}
-              onBlur={() => void checkRunNumberUniqueness()}
-              className="w-full rounded border border-[#ccc] p-2 text-sm"
-              placeholder="Ариутгалын дугаар"
+              value="Сервер автоматаар үүсгэнэ"
+              readOnly
+              className="w-full cursor-default rounded border border-[#ccc] bg-gray-100 p-2 text-sm text-gray-500"
             />
-            {runNumberWarning && <div className="mt-[3px] text-xs text-[#ff9800]">{runNumberWarning}</div>}
           </div>
 
           {/* Started At */}
