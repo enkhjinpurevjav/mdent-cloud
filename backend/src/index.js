@@ -65,7 +65,12 @@ import backfillRegnoRouter from "./routes/admin/backfillRegno.js";
 import checkInRouter from "./routes/check-in.js";
 import branchKioskRouter from "./routes/branch.js";
 import announcementsRouter from "./routes/announcements.js";
-import { authenticateJWT, requireRole, DOCTOR_KIOSK_COOKIE_NAME } from "./middleware/auth.js";
+import {
+  authenticateJWT,
+  requireRole,
+  DOCTOR_KIOSK_COOKIE_NAME,
+  NURSE_KIOSK_COOKIE_NAME,
+} from "./middleware/auth.js";
 import rateLimit from "express-rate-limit";
 import { autoCloseOpenAttendanceSessions } from "./services/attendanceAutoClose.js";
 
@@ -114,7 +119,8 @@ app.use("/api", (req, res, next) => {
   // Only enforce when a recognized auth cookie is present
   const hasCookie =
     req.cookies?.[COOKIE_NAME_FOR_CSRF] ||
-    req.cookies?.[DOCTOR_KIOSK_COOKIE_NAME];
+    req.cookies?.[DOCTOR_KIOSK_COOKIE_NAME] ||
+    req.cookies?.[NURSE_KIOSK_COOKIE_NAME];
   if (!hasCookie) return next();
 
   const origin = req.headers.origin || req.headers.referer || "";

@@ -43,6 +43,7 @@ export default function LoginPage() {
       const isXray = me.role === "xray";
       const isSterilization = me.role === "sterilization";
       const isOther = me.role === "other";
+      const isBranchKiosk = me.role === "branch_kiosk";
       const isAdminRole = ["admin", "super_admin"].includes(me.role);
       if (isDoctor && redirectParam.startsWith("/doctor")) {
         destination = redirectParam;
@@ -65,6 +66,11 @@ export default function LoginPage() {
         isOther &&
         (redirectParam.startsWith("/attendance") ||
           redirectParam.startsWith("/profile"))
+      ) {
+        destination = redirectParam;
+      } else if (
+        isBranchKiosk &&
+        (redirectParam.startsWith("/branch") || redirectParam.startsWith("/branch-nurse"))
       ) {
         destination = redirectParam;
       } else if (isAdminRole) {
