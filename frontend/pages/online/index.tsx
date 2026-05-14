@@ -219,7 +219,7 @@ export default function OnlineBookingPage() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
-  const startPolling = useCallback((bookingId: number, expiresAt: Date) => {
+  const startPolling = useCallback((draftIdForPolling: number, expiresAt: Date) => {
     const secondsLeft = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
     setTimeLeft(secondsLeft);
 
@@ -235,7 +235,7 @@ export default function OnlineBookingPage() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/bookings/online/${bookingId}/payment-status`);
+        const res = await fetch(`/api/public/online-booking/drafts/${draftIdForPolling}/payment-status`);
         const data = await res.json();
         if (data.status === "PAID") {
           setPaymentStatus("PAID");
@@ -264,6 +264,34 @@ export default function OnlineBookingPage() {
     if (!info.regNo.trim()) errors.regNo = "Регистр оруулна уу";
     setInfoErrors(errors);
     return Object.keys(errors).length === 0;
+  }
+
+  async function updateDraft(payload: Record<string, unknown>, fallbackError: string): Promise<boolean> {
+    if (!draftId) {
+      setStartError("Draft олдсонгүй. Мэдээллийн алхмыг дахин бөглөнө үү.");
+      setStep(1);
+      return false;
+    }
+
+    try {
+      const res = await fetch(`/api/public/online-booking/drafts/${draftId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStartError(data.error || fallbackError);
+        return false;
+      }
+      if (typeof data.expiresAt === "string") {
+        setDraftExpiresAt(data.expiresAt);
+      }
+      return true;
+    } catch {
+      setStartError("Сүлжээний алдаа. Дахин оролдоно уу.");
+      return false;
+    }
   }
 
   async function handleStep1Continue() {
@@ -304,25 +332,30 @@ export default function OnlineBookingPage() {
   }
 
   async function handleSlotClick(doctor: Doctor, slotTime: string) {
-    if (!selectedBranchId || !selectedCategory || !selectedDate) return;
+    if (!selectedBranchId || !selectedCategory || !selectedDate || !draftId) return;
     const endTime = addMinutes(slotTime, selectedCategory.durationMinutes);
     setHoldError(null);
+    setStartError(null);
     setHoldLoading(true);
     stopPolling();
     try {
-      const res = await fetch("/api/bookings/online/hold", {
+      const syncOk = await updateDraft(
+        {
+          serviceCategory: selectedCategory.category,
+          selectedDate,
+          selectedStartTime: slotTime,
+          selectedEndTime: endTime,
+        },
+        "Draft шинэчлэхэд алдаа гарлаа."
+      );
+      if (!syncOk) return;
+
+      const res = await fetch(`/api/public/online-booking/drafts/${draftId}/init-payment`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          branchId: selectedBranchId,
           doctorId: doctor.id,
-          date: selectedDate,
           startTime: slotTime,
-          endTime,
-          ovog: info.ovog,
-          name: info.name,
-          phone: info.phone,
-          regNo: info.regNo,
         }),
       });
       const data = await res.json();
@@ -340,7 +373,10 @@ export default function OnlineBookingPage() {
       });
       setPaymentStatus("PENDING");
       setStep(5);
-      startPolling(data.bookingId, new Date(data.expiresAt));
+      if (typeof data.expiresAt === "string") {
+        setDraftExpiresAt(data.expiresAt);
+      }
+      startPolling(draftId, new Date(data.expiresAt));
     } catch {
       setHoldError("Сүлжээний алдаа. Дахин оролдоно уу.");
     } finally {
@@ -472,6 +508,11 @@ export default function OnlineBookingPage() {
             Draft #{draftId} · хүчинтэй хугацаа: {new Date(draftExpiresAt).toLocaleTimeString()}
           </p>
         )}
+        {startError && (
+          <div style={{ marginBottom: 12, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 10, fontSize: 13 }}>
+            {startError}
+          </div>
+        )}
         <div style={{ marginBottom: 18 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
             Салбар
@@ -480,6 +521,7 @@ export default function OnlineBookingPage() {
             style={{ ...INPUT_STYLE, background: "#fff" }}
             value={selectedBranchId ?? ""}
             onChange={(e) => setSelectedBranchId(Number(e.target.value))}
+            disabled={Boolean(draftId)}
           >
             {branches.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
@@ -530,7 +572,22 @@ export default function OnlineBookingPage() {
           <button
             style={{ ...BTN_PRIMARY, opacity: selectedCategory ? 1 : 0.5 }}
             disabled={!selectedCategory}
-            onClick={() => { if (selectedCategory) setStep(3); }}
+            onClick={async () => {
+              if (!selectedCategory) return;
+              setStartError(null);
+              const draftPatch: Record<string, unknown> = {
+                serviceCategory: selectedCategory.category,
+              };
+              if (selectedBranchId != null) {
+                draftPatch.branchId = selectedBranchId;
+              }
+              const ok = await updateDraft(
+                draftPatch,
+                "Үйлчилгээний мэдээлэл хадгалах үед алдаа гарлаа."
+              );
+              if (!ok) return;
+              setStep(3);
+            }}
           >
             Үргэлжлүүлэх →
           </button>
@@ -551,11 +608,32 @@ export default function OnlineBookingPage() {
           style={INPUT_STYLE}
           value={selectedDate}
           min={todayStr()}
-          onChange={(e) => setSelectedDate(e.target.value)}
+          onChange={(e) => {
+            setSelectedDate(e.target.value);
+            setStartError(null);
+          }}
         />
+        {startError && (
+          <div style={{ marginTop: 12, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 10, fontSize: 13 }}>
+            {startError}
+          </div>
+        )}
         <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between" }}>
           <button style={BTN_GHOST} onClick={() => setStep(2)}>← Буцах</button>
-          <button style={BTN_PRIMARY} disabled={!selectedDate} onClick={() => setStep(4)}>
+          <button
+            style={BTN_PRIMARY}
+            disabled={!selectedDate}
+            onClick={async () => {
+              if (!selectedDate) return;
+              setStartError(null);
+              const ok = await updateDraft(
+                { selectedDate },
+                "Өдрийн мэдээлэл хадгалах үед алдаа гарлаа."
+              );
+              if (!ok) return;
+              setStep(4);
+            }}
+          >
             Цагийн хуваарь харах →
           </button>
         </div>

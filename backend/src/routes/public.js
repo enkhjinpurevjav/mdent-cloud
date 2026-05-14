@@ -2,13 +2,16 @@
 // Public endpoints – no authentication required.
 // Mounted at /api/public
 import { Router } from "express";
-import { PrismaClient, BookingStatus } from "@prisma/client";
+import { PrismaClient, BookingStatus, UserRole } from "@prisma/client";
+import crypto from "crypto";
 import rateLimit from "express-rate-limit";
 import { normalizeRegNo, parseRegNo } from "../utils/regno.js";
+import * as qpayService from "../services/qpayService.js";
 
 const prisma = new PrismaClient();
 const router = Router();
 const ONLINE_BOOKING_DRAFT_HOLD_MINUTES = 10;
+const DEPOSIT_AMOUNT = 30_000; // MNT
 
 const onlineBookingStartLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -17,6 +20,39 @@ const onlineBookingStartLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "Too many online booking attempts. Please try again later." },
 });
+
+function isValidTime(str) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(str);
+}
+
+function addMinutes(timeStr, minutes) {
+  const [h, m] = timeStr.split(":").map(Number);
+  const total = h * 60 + m + minutes;
+  const hh = String(Math.floor(total / 60) % 24).padStart(2, "0");
+  const mm = String(total % 60).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+async function getOrCreatePlaceholderPatient(branchId) {
+  const existing = await prisma.patient.findFirst({
+    where: {
+      branchId,
+      name: "ONLINE",
+      ovog: "BOOKING",
+    },
+    select: { id: true },
+  });
+  if (existing) return existing;
+
+  return prisma.patient.create({
+    data: {
+      branchId,
+      name: "ONLINE",
+      ovog: "BOOKING",
+    },
+    select: { id: true },
+  });
+}
 
 /**
  * Convert "YYYY-MM-DD" → Date at 00:00 UTC-local.
@@ -236,6 +272,24 @@ function buildOnlineInfoNote({ ovog, name, phone, regNo, matchStatus }) {
   return lines.join("\n");
 }
 
+async function getDraftOrError(draftIdRaw, res) {
+  const draftId = Number(draftIdRaw);
+  if (!draftId || Number.isNaN(draftId)) {
+    res.status(400).json({ error: "Invalid draftId" });
+    return { draft: null, draftId: null };
+  }
+
+  const draft = await prisma.onlineBookingDraft.findUnique({
+    where: { id: draftId },
+  });
+  if (!draft) {
+    res.status(404).json({ error: "Draft not found" });
+    return { draft: null, draftId };
+  }
+
+  return { draft, draftId };
+}
+
 /**
  * POST /api/public/online-booking/start
  * Initializes online booking Step 1 draft without creating/updating Patient.
@@ -344,6 +398,387 @@ router.post("/online-booking/start", onlineBookingStartLimiter, async (req, res)
   } catch (err) {
     console.error("POST /api/public/online-booking/start error:", err);
     return res.status(500).json({ error: "Failed to initialize online booking draft" });
+  }
+});
+
+/**
+ * PATCH /api/public/online-booking/drafts/:draftId
+ * Updates draft data after Step 1 (service/date/time metadata).
+ */
+router.patch("/online-booking/drafts/:draftId", async (req, res) => {
+  try {
+    const { draft } = await getDraftOrError(req.params.draftId, res);
+    if (!draft) return;
+
+    if (draft.status === "PAID") {
+      return res.status(400).json({ error: "Draft is already paid" });
+    }
+    if (draft.status === "CANCELLED" || draft.status === "EXPIRED") {
+      return res.status(400).json({ error: "Draft is no longer active" });
+    }
+    if (new Date() > draft.expiresAt) {
+      await prisma.onlineBookingDraft.update({
+        where: { id: draft.id },
+        data: { status: "EXPIRED" },
+      });
+      return res.status(410).json({ error: "Draft expired" });
+    }
+
+    const { serviceCategory, selectedDate, selectedStartTime, selectedEndTime, branchId } = req.body || {};
+
+    if (branchId !== undefined && Number(branchId) !== draft.branchId) {
+      return res.status(400).json({ error: "branchId cannot be changed after Step 1" });
+    }
+
+    const data = {};
+    if (serviceCategory !== undefined) {
+      const categoryConfig = await prisma.serviceCategoryConfig.findUnique({
+        where: { category: serviceCategory },
+        select: { category: true },
+      });
+      if (!categoryConfig) {
+        return res.status(400).json({ error: "Invalid serviceCategory" });
+      }
+      data.serviceCategory = serviceCategory;
+    }
+
+    if (selectedDate !== undefined) {
+      const day = parseDateOrNull(selectedDate);
+      if (!day) {
+        return res.status(400).json({ error: "Invalid selectedDate (use YYYY-MM-DD)" });
+      }
+      data.selectedDate = day;
+    }
+
+    if (selectedStartTime !== undefined) {
+      if (selectedStartTime && !isValidTime(selectedStartTime)) {
+        return res.status(400).json({ error: "Invalid selectedStartTime" });
+      }
+      data.selectedStartTime = selectedStartTime || null;
+    }
+
+    if (selectedEndTime !== undefined) {
+      if (selectedEndTime && !isValidTime(selectedEndTime)) {
+        return res.status(400).json({ error: "Invalid selectedEndTime" });
+      }
+      data.selectedEndTime = selectedEndTime || null;
+    }
+
+    const updated = await prisma.onlineBookingDraft.update({
+      where: { id: draft.id },
+      data,
+      select: {
+        id: true,
+        status: true,
+        matchStatus: true,
+        branchId: true,
+        serviceCategory: true,
+        selectedDate: true,
+        selectedStartTime: true,
+        selectedEndTime: true,
+        expiresAt: true,
+      },
+    });
+
+    return res.json({
+      draftId: updated.id,
+      status: updated.status,
+      matchStatus: updated.matchStatus,
+      branchId: updated.branchId,
+      serviceCategory: updated.serviceCategory,
+      selectedDate: updated.selectedDate ? updated.selectedDate.toISOString().slice(0, 10) : null,
+      selectedStartTime: updated.selectedStartTime,
+      selectedEndTime: updated.selectedEndTime,
+      expiresAt: updated.expiresAt.toISOString(),
+    });
+  } catch (err) {
+    console.error("PATCH /api/public/online-booking/drafts/:draftId error:", err);
+    return res.status(500).json({ error: "Failed to update draft" });
+  }
+});
+
+/**
+ * POST /api/public/online-booking/drafts/:draftId/init-payment
+ * Initializes booking hold + QPay invoice from a validated draft.
+ */
+router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => {
+  try {
+    const { draft } = await getDraftOrError(req.params.draftId, res);
+    if (!draft) return;
+
+    if (draft.status === "PAID") {
+      return res.status(400).json({ error: "Draft is already paid" });
+    }
+    if (draft.status === "CANCELLED" || draft.status === "EXPIRED") {
+      return res.status(400).json({ error: "Draft is no longer active" });
+    }
+    if (draft.bookingId) {
+      return res.status(409).json({ error: "Payment already initialized for this draft" });
+    }
+    if (new Date() > draft.expiresAt) {
+      await prisma.onlineBookingDraft.update({
+        where: { id: draft.id },
+        data: { status: "EXPIRED" },
+      });
+      return res.status(410).json({ error: "Draft expired" });
+    }
+
+    const { doctorId, startTime } = req.body || {};
+    const did = Number(doctorId);
+    if (Number.isNaN(did)) {
+      return res.status(400).json({ error: "Invalid doctorId" });
+    }
+    if (!isValidTime(startTime)) {
+      return res.status(400).json({ error: "startTime must be HH:MM (24h)" });
+    }
+    if (!draft.selectedDate || !draft.serviceCategory) {
+      return res.status(400).json({ error: "Draft is missing selectedDate or serviceCategory" });
+    }
+
+    const categoryConfig = await prisma.serviceCategoryConfig.findUnique({
+      where: { category: draft.serviceCategory },
+      select: { durationMinutes: true },
+    });
+    const durationMinutes = categoryConfig?.durationMinutes ?? 30;
+    const endTime = addMinutes(startTime, durationMinutes);
+
+    const doctor = await prisma.user.findUnique({
+      where: { id: did },
+      select: { id: true, role: true },
+    });
+    if (!doctor || doctor.role !== UserRole.doctor) {
+      return res.status(400).json({ error: "Invalid doctor" });
+    }
+
+    const schedule = await prisma.doctorSchedule.findFirst({
+      where: { doctorId: did, branchId: draft.branchId, date: draft.selectedDate },
+      select: { startTime: true, endTime: true },
+    });
+    if (!schedule) {
+      return res.status(400).json({ error: "Doctor has no schedule for this date/branch" });
+    }
+    if (startTime < schedule.startTime || endTime > schedule.endTime) {
+      return res.status(400).json({
+        error: "Booking outside doctor's working hours",
+        scheduleStart: schedule.startTime,
+        scheduleEnd: schedule.endTime,
+      });
+    }
+
+    const activeStatuses = [
+      BookingStatus.PENDING,
+      BookingStatus.CONFIRMED,
+      BookingStatus.IN_PROGRESS,
+      BookingStatus.ONLINE_HELD,
+      BookingStatus.ONLINE_CONFIRMED,
+    ];
+    const collision = await prisma.booking.findFirst({
+      where: {
+        doctorId: did,
+        date: draft.selectedDate,
+        status: { in: activeStatuses },
+        startTime: { lt: endTime },
+        endTime: { gt: startTime },
+      },
+    });
+    if (collision) {
+      return res.status(409).json({ error: "Time slot is already taken" });
+    }
+    const exactStartConflict = await prisma.booking.findFirst({
+      where: {
+        doctorId: did,
+        date: draft.selectedDate,
+        startTime,
+        status: { not: BookingStatus.ONLINE_EXPIRED },
+      },
+    });
+    if (exactStartConflict) {
+      return res.status(409).json({ error: "Time slot is already taken" });
+    }
+
+    const placeholder = await getOrCreatePlaceholderPatient(draft.branchId);
+    const booking = await prisma.booking.create({
+      data: {
+        patientId: placeholder.id,
+        doctorId: did,
+        branchId: draft.branchId,
+        date: draft.selectedDate,
+        startTime,
+        endTime,
+        status: BookingStatus.ONLINE_HELD,
+        note: draft.note || null,
+      },
+    });
+
+    const callbackToken = crypto.randomBytes(24).toString("hex");
+    const baseUrl = process.env.PUBLIC_BASE_URL || process.env.APP_BASE_URL || "";
+    const callbackUrl = `${baseUrl}/api/qpay/booking/callback?bookingId=${booking.id}&token=${callbackToken}`;
+    const senderInvoiceNo = `BOOK-${booking.id}-${Date.now()}`;
+    const dateStr = draft.selectedDate.toISOString().slice(0, 10);
+    const description = `Онлайн цаг захиалга #${booking.id} (${dateStr} ${startTime}-${endTime})`;
+
+    let qpayResponse;
+    try {
+      qpayResponse = await qpayService.createInvoice({
+        sender_invoice_no: senderInvoiceNo,
+        amount: DEPOSIT_AMOUNT,
+        description,
+        callback_url: callbackUrl,
+        branchId: draft.branchId,
+      });
+    } catch (qpayErr) {
+      await prisma.booking.delete({ where: { id: booking.id } }).catch(() => {});
+      console.error("QPay invoice creation failed:", qpayErr);
+      return res.status(502).json({ error: "Failed to create QPay invoice: " + qpayErr.message });
+    }
+
+    const holdExpiresAt = new Date(Date.now() + ONLINE_BOOKING_DRAFT_HOLD_MINUTES * 60 * 1000);
+    await prisma.$transaction([
+      prisma.bookingDeposit.create({
+        data: {
+          bookingId: booking.id,
+          branchId: draft.branchId,
+          amount: DEPOSIT_AMOUNT,
+          status: "NEW",
+          holdExpiresAt,
+          qpayInvoiceId: qpayResponse.invoice_id,
+          senderInvoiceNo,
+          callbackToken,
+        },
+      }),
+      prisma.onlineBookingDraft.update({
+        where: { id: draft.id },
+        data: {
+          bookingId: booking.id,
+          status: "VERIFIED",
+          selectedStartTime: startTime,
+          selectedEndTime: endTime,
+          expiresAt: holdExpiresAt,
+        },
+      }),
+    ]);
+
+    return res.status(201).json({
+      bookingId: booking.id,
+      draftId: draft.id,
+      expiresAt: holdExpiresAt.toISOString(),
+      qpayInvoiceId: qpayResponse.invoice_id,
+      qrText: qpayResponse.qr_text,
+      qrImage: qpayResponse.qr_image,
+      urls: qpayResponse.urls,
+    });
+  } catch (err) {
+    console.error("POST /api/public/online-booking/drafts/:draftId/init-payment error:", err);
+    return res.status(500).json({ error: "Failed to initialize draft payment" });
+  }
+});
+
+/**
+ * GET /api/public/online-booking/drafts/:draftId/payment-status
+ * Poll payment status using draftId.
+ */
+router.get("/online-booking/drafts/:draftId/payment-status", async (req, res) => {
+  try {
+    const { draft } = await getDraftOrError(req.params.draftId, res);
+    if (!draft) return;
+
+    if (!draft.bookingId) {
+      return res.status(400).json({ error: "Payment not initialized for this draft" });
+    }
+
+    const bookingId = draft.bookingId;
+    const deposit = await prisma.bookingDeposit.findUnique({
+      where: { bookingId },
+    });
+    if (!deposit) {
+      return res.status(404).json({ error: "Deposit not found" });
+    }
+
+    if (deposit.status === "PAID") {
+      if (draft.status !== "PAID") {
+        await prisma.onlineBookingDraft.update({
+          where: { id: draft.id },
+          data: { status: "PAID" },
+        }).catch(() => {});
+      }
+      return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });
+    }
+    if (deposit.status === "EXPIRED" || deposit.status === "CANCELLED") {
+      if (draft.status !== "EXPIRED") {
+        await prisma.onlineBookingDraft.update({
+          where: { id: draft.id },
+          data: { status: "EXPIRED" },
+        }).catch(() => {});
+      }
+      return res.json({ status: deposit.status, bookingStatus: BookingStatus.ONLINE_EXPIRED });
+    }
+
+    const now = new Date();
+    const isExpired = now > deposit.holdExpiresAt;
+
+    let checkResult;
+    try {
+      checkResult = await qpayService.checkInvoicePaid(deposit.qpayInvoiceId, deposit.branchId);
+    } catch (checkErr) {
+      console.error("Draft payment check failed:", checkErr);
+      return res.status(502).json({ error: "Payment check failed: " + checkErr.message });
+    }
+
+    if (checkResult.paid && checkResult.paidAmount >= DEPOSIT_AMOUNT) {
+      await prisma.$transaction([
+        prisma.bookingDeposit.update({
+          where: { bookingId },
+          data: {
+            status: "PAID",
+            paidAmount: checkResult.paidAmount,
+            qpayPaymentId: checkResult.paymentId,
+            paidAt: checkResult.paidAt ? new Date(checkResult.paidAt) : new Date(),
+            raw: checkResult.raw,
+          },
+        }),
+        prisma.booking.update({
+          where: { id: bookingId },
+          data: { status: BookingStatus.ONLINE_CONFIRMED },
+        }),
+        prisma.onlineBookingDraft.update({
+          where: { id: draft.id },
+          data: { status: "PAID" },
+        }),
+      ]);
+      return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });
+    }
+
+    if (isExpired) {
+      try {
+        await qpayService.cancelInvoice(deposit.qpayInvoiceId, deposit.branchId);
+      } catch (cancelErr) {
+        console.error("QPay invoice cancel failed (will still expire):", cancelErr);
+      }
+      await prisma.$transaction([
+        prisma.bookingDeposit.update({
+          where: { bookingId },
+          data: { status: "EXPIRED" },
+        }),
+        prisma.booking.update({
+          where: { id: bookingId },
+          data: { status: BookingStatus.ONLINE_EXPIRED },
+        }),
+        prisma.onlineBookingDraft.update({
+          where: { id: draft.id },
+          data: { status: "EXPIRED" },
+        }),
+      ]);
+      return res.json({ status: "EXPIRED", bookingStatus: BookingStatus.ONLINE_EXPIRED });
+    }
+
+    return res.json({
+      status: "PENDING",
+      bookingStatus: BookingStatus.ONLINE_HELD,
+      expiresAt: deposit.holdExpiresAt.toISOString(),
+    });
+  } catch (err) {
+    console.error("GET /api/public/online-booking/drafts/:draftId/payment-status error:", err);
+    return res.status(500).json({ error: "Failed to check draft payment status" });
   }
 });
 

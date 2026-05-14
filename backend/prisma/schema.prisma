@@ -1093,6 +1093,7 @@ model Booking {
   patient Patient @relation(fields: [patientId], references: [id])
 
   deposit BookingDeposit?
+  onlineBookingDraft OnlineBookingDraft?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1129,6 +1130,8 @@ model OnlineBookingDraft {
   branch           Branch                   @relation(fields: [branchId], references: [id])
   matchedPatientId Int?
   matchedPatient   Patient?                 @relation("MatchedPatientOnlineBookingDrafts", fields: [matchedPatientId], references: [id])
+  bookingId        Int?                     @unique
+  booking          Booking?                 @relation(fields: [bookingId], references: [id])
 
   status           OnlineBookingDraftStatus @default(PENDING_PAYMENT)
   matchStatus      OnlineBookingMatchStatus @default(NEW)
