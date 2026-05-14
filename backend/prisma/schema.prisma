@@ -29,6 +29,7 @@ enum UserRole {
   sterilization
   other
   branch_kiosk
+  branch_nurse_kiosk
   doctor_kiosk
 }
 

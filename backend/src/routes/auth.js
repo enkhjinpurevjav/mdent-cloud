@@ -57,7 +57,7 @@ const ipEmailRateLimit = rateLimit({
 
 const COOKIE_NAME = "access_token";
 const COOKIE_MAX_AGE_MS = 8 * 60 * 60 * 1000; // 8 hours
-const KIOSK_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours (branch_kiosk)
+const KIOSK_COOKIE_MAX_AGE_MS = 12 * 60 * 60 * 1000; // 12 hours (branch kiosks)
 
 function decodeCookieValue(value) {
   if (typeof value !== "string") return "";
@@ -151,7 +151,7 @@ router.post("/login", ipBackstopRateLimit, ipEmailRateLimit, async (req, res) =>
     return res.status(500).json({ error: "Internal server error." });
   }
 
-  const isKiosk = user.role === "branch_kiosk";
+  const isKiosk = user.role === "branch_kiosk" || user.role === "branch_nurse_kiosk";
   const jwtExpiresIn = isKiosk ? "12h" : "8h";
   const cookieMaxAge = isKiosk ? KIOSK_COOKIE_MAX_AGE_MS : COOKIE_MAX_AGE_MS;
 

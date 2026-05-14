@@ -230,6 +230,14 @@ function AppContent({ Component, pageProps }: AppProps) {
     void router.replace("/attendance");
   }, [isPublicRoute, loading, me, router]);
 
+  // Keep nurse kiosk users scoped to nurse kiosk-only pages.
+  useEffect(() => {
+    if (loading || !me || isPublicRoute) return;
+    if (me.role !== "branch_nurse_kiosk") return;
+    if (isBranchNurseKioskPath(router.pathname)) return;
+    void router.replace("/branch-nurse");
+  }, [isPublicRoute, loading, me, router]);
+
   // Show tooth loader during initial auth bootstrap for protected pages
   if (loading && !isPublicRoute) {
     return <ToothLoader />;
