@@ -40,7 +40,7 @@ export default function BranchNurseKioskPage() {
           router.replace("/login?redirect=/branch-nurse");
           return;
         }
-        if (user.role !== "branch_kiosk") {
+        if (user.role !== "branch_nurse_kiosk") {
           router.replace("/");
           return;
         }

@@ -47,6 +47,8 @@ export default function LoginForm() {
       const isHr = user?.role === "hr";
       const isSterilization = user?.role === "sterilization";
       const isOther = user?.role === "other";
+      const isBranchKiosk = user?.role === "branch_kiosk";
+      const isBranchNurseKiosk = user?.role === "branch_nurse_kiosk";
       const isAdminRole = ["admin", "super_admin"].includes(user?.role ?? "");
 
       // Role-scoped redirect safety:
@@ -86,6 +88,10 @@ export default function LoginForm() {
             redirectParam.startsWith("/profile"))
         ) {
           safeRedirect = redirectParam;
+        } else if (isBranchKiosk && redirectParam.startsWith("/branch")) {
+          safeRedirect = redirectParam;
+        } else if (isBranchNurseKiosk && redirectParam.startsWith("/branch-nurse")) {
+          safeRedirect = redirectParam;
         } else if (isAdminRole) {
           safeRedirect = redirectParam;
         }
@@ -107,6 +113,10 @@ export default function LoginForm() {
         ? "/sterilization/cycles/new"
         : isOther
         ? "/attendance"
+        : isBranchKiosk
+        ? "/branch"
+        : isBranchNurseKiosk
+        ? "/branch-nurse"
         : "/bookings";
 
       router.replace(safeRedirect || fallback);

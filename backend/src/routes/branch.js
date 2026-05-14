@@ -7,6 +7,7 @@
  *
  * Route roles:
  *   branch_kiosk  – the shared tablet session (access_token cookie, role=branch_kiosk)
+ *   branch_nurse_kiosk – dedicated nurse kiosk tablet session (access_token cookie)
  *   doctor_kiosk  – a per-doctor unlocked session (doctor_kiosk_token cookie)
  */
 
@@ -124,6 +125,52 @@ async function requireBranchKiosk(req, res, next) {
   }
 
   req.branchKioskUser = decoded;
+  return next();
+}
+
+/**
+ * Authenticate a branch_nurse_kiosk request by verifying the access_token cookie.
+ * Populates req.branchNurseKioskUser = { id, role, branchId, ... } on success.
+ */
+async function requireBranchNurseKiosk(req, res, next) {
+  if (process.env.DISABLE_AUTH === "true") {
+    req.branchNurseKioskUser = { id: 0, role: "branch_nurse_kiosk", branchId: 1 };
+    return next();
+  }
+
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) return res.status(401).json({ error: "Authentication required." });
+
+  const secret = getJwtSecret();
+  if (!secret) return res.status(500).json({ error: "Internal server error." });
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, secret);
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ error: "Token expired." });
+    }
+    return res.status(401).json({ error: "Invalid token." });
+  }
+
+  if (decoded.role !== "branch_nurse_kiosk") {
+    return res.status(403).json({ error: "Forbidden. Nurse branch kiosk role required." });
+  }
+
+  try {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { isActive: true },
+    });
+    if (!dbUser || !dbUser.isActive) {
+      return res.status(401).json({ error: "Энэ бүртгэл идэвхгүй байна." });
+    }
+  } catch {
+    return res.status(500).json({ error: "Internal server error." });
+  }
+
+  req.branchNurseKioskUser = decoded;
   return next();
 }
 
@@ -317,13 +364,13 @@ router.get("/doctors/today", requireBranchKiosk, async (req, res) => {
 
 /**
  * GET /api/branch/nurses/all
- * Auth: branch_kiosk
+ * Auth: branch_nurse_kiosk
  *
  * Returns all active nurses for kiosk branch (not schedule-based).
  */
-router.get("/nurses/all", requireBranchKiosk, async (req, res) => {
+router.get("/nurses/all", requireBranchNurseKiosk, async (req, res) => {
   try {
-    const branchId = req.branchKioskUser.branchId;
+    const branchId = req.branchNurseKioskUser.branchId;
     if (!branchId) {
       return res.status(400).json({ error: "Kiosk user has no branchId." });
     }
@@ -454,14 +501,14 @@ router.post(
 
 /**
  * POST /api/branch/nurses/:nurseId/unlock
- * Auth: branch_kiosk
+ * Auth: branch_nurse_kiosk
  * Body: { pin: "1234" }
  *
  * Verifies a nurse 4-digit PIN and issues nurse_kiosk_token.
  */
 router.post(
   "/nurses/:nurseId/unlock",
-  requireBranchKiosk,
+  requireBranchNurseKiosk,
   nurseUnlockRateLimit,
   async (req, res) => {
     try {
@@ -478,7 +525,7 @@ router.post(
         return res.status(400).json({ error: "PIN must be exactly 4 digits." });
       }
 
-      const kioskBranchId = req.branchKioskUser.branchId;
+      const kioskBranchId = req.branchNurseKioskUser.branchId;
 
       const nurse = await prisma.user.findUnique({
         where: { id: nurseId },

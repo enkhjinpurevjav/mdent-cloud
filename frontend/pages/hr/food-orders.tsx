@@ -66,6 +66,7 @@ function roleLabel(role: string) {
     sterilization: "Ариутгал",
     other: "Бусад",
     branch_kiosk: "Салбар киоск",
+    branch_nurse_kiosk: "Сувилагч киоск",
     doctor_kiosk: "Эмч киоск",
   };
   return map[role] || role;
