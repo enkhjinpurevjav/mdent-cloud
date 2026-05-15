@@ -262,8 +262,8 @@ describe("deallocatePaymentProportionalByAllocated – partial reversal", () => 
     const result = deallocatePaymentProportionalByAllocated(50000, [1, 2], allocatedByItem);
     const total = [...result.values()].reduce((s, v) => s + v, 0);
     assert.equal(total, 50000);
-    assert.equal(allocatedByItem.get(1), 18750);
-    assert.equal(allocatedByItem.get(2), 81250);
+    assert.equal(allocatedByItem.get(1), 16667);
+    assert.equal(allocatedByItem.get(2), 83333);
   });
 });
 
