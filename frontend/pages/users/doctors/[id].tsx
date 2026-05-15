@@ -31,6 +31,7 @@ type Doctor = {
   idPhotoPath?: string | null;
   phone?: string | null;
   branches?: Branch[];
+  serviceCategories?: ServiceCategory[];
   calendarOrder?: number | null;
 };
 
@@ -64,6 +65,28 @@ type DoctorAppointment = {
 
 type ShiftType = "AM" | "PM" | "WEEKEND_FULL";
 type DoctorTabKey = "profile" | "dashboard" | "schedule" | "appointments" | "sales" | "history";
+type ServiceCategory =
+  | "ORTHODONTIC_TREATMENT"
+  | "IMAGING"
+  | "DEFECT_CORRECTION"
+  | "ADULT_TREATMENT"
+  | "WHITENING"
+  | "CHILD_TREATMENT"
+  | "SURGERY";
+
+const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
+  ORTHODONTIC_TREATMENT: "Гажиг заслын эмчилгээ",
+  IMAGING: "Зураг авах",
+  DEFECT_CORRECTION: "Согог засал",
+  ADULT_TREATMENT: "Том хүний эмчилгээ",
+  WHITENING: "Цайруулалт",
+  CHILD_TREATMENT: "Хүүхдийн эмчилгээ",
+  SURGERY: "Мэс засал",
+};
+
+const ALL_SERVICE_CATEGORIES = Object.keys(
+  SERVICE_CATEGORY_LABELS
+) as ServiceCategory[];
 
 // ── Sales tab types ────────────────────────────────────────────────────────────
 
@@ -501,6 +524,12 @@ useEffect(() => {
 
   // selected multiple branches
   const [selectedBranchIds, setSelectedBranchIds] = useState<number[]>([]);
+  const [selectedServiceCategories, setSelectedServiceCategories] = useState<
+    ServiceCategory[]
+  >([]);
+  const [savingServiceCategories, setSavingServiceCategories] = useState(false);
+  const [serviceCategoriesError, setServiceCategoriesError] = useState<string | null>(null);
+  const [serviceCategoriesSaved, setServiceCategoriesSaved] = useState<string | null>(null);
 
   // schedule state (next 31 days)
   const [schedule, setSchedule] = useState<DoctorScheduleDay[]>([]);
@@ -658,6 +687,16 @@ useEffect(() => {
     );
   };
 
+  const toggleServiceCategory = (category: ServiceCategory) => {
+    setSelectedServiceCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((c) => c !== category)
+        : [...prev, category]
+    );
+    setServiceCategoriesError(null);
+    setServiceCategoriesSaved(null);
+  };
+
   const handleScheduleFormChange = (
     e:
       | React.ChangeEvent<HTMLInputElement>
@@ -767,6 +806,16 @@ useEffect(() => {
         // initialize multi-branch selection from doctor.branches
         const initialBranchIds = (doc.branches || []).map((b) => b.id);
         setSelectedBranchIds(initialBranchIds);
+
+        const initialCategories =
+          doc.serviceCategories && Array.isArray(doc.serviceCategories)
+            ? (doc.serviceCategories.filter((c): c is ServiceCategory =>
+                ALL_SERVICE_CATEGORIES.includes(c as ServiceCategory)
+              ) as ServiceCategory[])
+            : [];
+        setSelectedServiceCategories(initialCategories);
+        setServiceCategoriesError(null);
+        setServiceCategoriesSaved(null);
 
         // preselect first assigned branch in schedule form
         setScheduleForm((prev) => ({
@@ -1140,6 +1189,46 @@ useEffect(() => {
       setError("Сүлжээгээ шалгана уу");
     } finally {
       setSavingBranches(false);
+    }
+  };
+
+  const handleSaveServiceCategories = async () => {
+    if (!id) return;
+    setSavingServiceCategories(true);
+    setServiceCategoriesError(null);
+    setServiceCategoriesSaved(null);
+
+    try {
+      const res = await fetch(`/api/users/${id}/service-categories`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ categories: selectedServiceCategories }),
+      });
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setServiceCategoriesError(
+          (data as { error?: string } | null)?.error ||
+            "Үйлчилгээний төрөл хадгалах үед алдаа гарлаа"
+        );
+        return;
+      }
+
+      const nextCategories = Array.isArray(data?.categories)
+        ? (data.categories.filter((c: string): c is ServiceCategory =>
+            ALL_SERVICE_CATEGORIES.includes(c as ServiceCategory)
+          ) as ServiceCategory[])
+        : selectedServiceCategories;
+      setSelectedServiceCategories(nextCategories);
+      setDoctor((prev) =>
+        prev ? { ...prev, serviceCategories: nextCategories } : prev
+      );
+      setServiceCategoriesSaved("Үйлчилгээний төрлүүд хадгалагдлаа");
+    } catch (err) {
+      console.error(err);
+      setServiceCategoriesError("Сүлжээгээ шалгана уу");
+    } finally {
+      setSavingServiceCategories(false);
     }
   };
 
@@ -1823,6 +1912,19 @@ function formatScheduleDate(ymd: string): string {
 
           <div className="col-span-full">
             <div className="text-gray-500 mb-0.5">
+              Хийх боломжтой үйлчилгээний төрөл
+            </div>
+            <div>
+              {doctor.serviceCategories && doctor.serviceCategories.length > 0
+                ? doctor.serviceCategories
+                    .map((c) => SERVICE_CATEGORY_LABELS[c] || c)
+                    .join(", ")
+                : "-"}
+            </div>
+          </div>
+
+          <div className="col-span-full">
+            <div className="text-gray-500 mb-0.5">
               Гарын үсгийн зураг (URL)
             </div>
             <div>{doctor.signatureImagePath || "-"}</div>
@@ -2359,6 +2461,50 @@ function formatScheduleDate(ymd: string): string {
               onChange={() => toggleBranch(b.id)}
             />
             {b.name}
+          </label>
+        ))}
+      </div>
+    </div>
+
+    <div className="mt-4 rounded-xl border border-gray-200 p-4 bg-white">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-base mt-0 mb-0">Үйлчилгээний төрлийн чадвар</h2>
+
+        <button
+          type="button"
+          onClick={handleSaveServiceCategories}
+          disabled={savingServiceCategories}
+          className={`px-3 py-1.5 rounded-md border-0 ${savingServiceCategories ? "bg-gray-400" : "bg-indigo-600"} text-white text-[13px] ${savingServiceCategories ? "cursor-default" : "cursor-pointer"}`}
+        >
+          {savingServiceCategories
+            ? "Хадгалж байна..."
+            : "Үйлчилгээний төрөл хадгалах"}
+        </button>
+      </div>
+
+      <div className="text-gray-500 text-[13px] mb-2.5">
+        Онлайн захиалгад энэ эмчид харагдах үйлчилгээний төрлүүдийг сонгоно.
+      </div>
+
+      {serviceCategoriesError && (
+        <div className="text-red-700 text-xs mb-2">{serviceCategoriesError}</div>
+      )}
+      {serviceCategoriesSaved && (
+        <div className="text-emerald-700 text-xs mb-2">{serviceCategoriesSaved}</div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {ALL_SERVICE_CATEGORIES.map((category) => (
+          <label
+            key={category}
+            className="inline-flex items-center gap-1.5 border border-gray-300 rounded px-2 py-1 text-[13px]"
+          >
+            <input
+              type="checkbox"
+              checked={selectedServiceCategories.includes(category)}
+              onChange={() => toggleServiceCategory(category)}
+            />
+            {SERVICE_CATEGORY_LABELS[category]}
           </label>
         ))}
       </div>
