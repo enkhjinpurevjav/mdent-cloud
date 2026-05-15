@@ -2,10 +2,11 @@ import express from "express";
 import prisma from "../db.js";
 import * as qpayService from "../services/qpayService.js";
 import { BookingStatus } from "@prisma/client";
+import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
 
 const router = express.Router();
 
-const DEPOSIT_AMOUNT = 30_000;
+const ONLINE_BOOKING_DEPOSIT_AMOUNT = getOnlineBookingDepositAmount();
 
 /**
  * POST /api/qpay/invoice
@@ -195,7 +196,7 @@ async function handleBookingCallback(bookingId, token) {
     // Call payment/check as source of truth
     const checkResult = await qpayService.checkInvoicePaid(deposit.qpayInvoiceId, deposit.branchId);
 
-    if (checkResult.paid && checkResult.paidAmount >= DEPOSIT_AMOUNT) {
+    if (checkResult.paid && checkResult.paidAmount >= ONLINE_BOOKING_DEPOSIT_AMOUNT) {
       await prisma.$transaction([
         prisma.bookingDeposit.update({
           where: { bookingId: bid },
