@@ -4,6 +4,7 @@ import { PrismaClient, BookingStatus, UserRole } from "@prisma/client";
 import crypto from "crypto";
 import * as qpayService from "../services/qpayService.js";
 import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
+import { ensureOnlineAppointmentForBooking } from "../services/onlineBookingAppointmentSync.js";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -361,6 +362,13 @@ router.get("/online/:bookingId/payment-status", async (req, res) => {
 
     // Already settled
     if (deposit.status === "PAID") {
+      await prisma.$transaction(async (tx) => {
+        await tx.booking.update({
+          where: { id: bookingId },
+          data: { status: BookingStatus.ONLINE_CONFIRMED },
+        });
+        await ensureOnlineAppointmentForBooking(tx, bookingId);
+      });
       return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });
     }
     if (deposit.status === "EXPIRED" || deposit.status === "CANCELLED") {
@@ -381,8 +389,8 @@ router.get("/online/:bookingId/payment-status", async (req, res) => {
 
     if (checkResult.paid && checkResult.paidAmount >= ONLINE_BOOKING_DEPOSIT_AMOUNT) {
       // Confirm payment
-      await prisma.$transaction([
-        prisma.bookingDeposit.update({
+      await prisma.$transaction(async (tx) => {
+        await tx.bookingDeposit.update({
           where: { bookingId },
           data: {
             status: "PAID",
@@ -391,12 +399,13 @@ router.get("/online/:bookingId/payment-status", async (req, res) => {
             paidAt: checkResult.paidAt ? new Date(checkResult.paidAt) : new Date(),
             raw: checkResult.raw,
           },
-        }),
-        prisma.booking.update({
+        });
+        await tx.booking.update({
           where: { id: bookingId },
           data: { status: BookingStatus.ONLINE_CONFIRMED },
-        }),
-      ]);
+        });
+        await ensureOnlineAppointmentForBooking(tx, bookingId);
+      });
       return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });
     }
 
