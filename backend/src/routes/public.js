@@ -21,6 +21,15 @@ const BOOKABLE_SERVICE_CATEGORIES = [
   "CHILD_TREATMENT",
   "SURGERY",
 ];
+const ONLINE_BOOKING_SERVICE_TYPES = ["CONSULTATION", "TREATMENT"];
+const ONLINE_BOOKING_TREATMENT_CATEGORIES = BOOKABLE_SERVICE_CATEGORIES.filter((cat) => cat !== "IMAGING");
+const ONLINE_BOOKING_CONSULTATION_CATEGORIES = [
+  "ORTHODONTIC_TREATMENT",
+  "ADULT_TREATMENT",
+  "SURGERY",
+  "DEFECT_CORRECTION",
+  "CHILD_TREATMENT",
+];
 
 const onlineBookingStartLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -40,6 +49,21 @@ function addMinutes(timeStr, minutes) {
   const hh = String(Math.floor(total / 60) % 24).padStart(2, "0");
   const mm = String(total % 60).padStart(2, "0");
   return `${hh}:${mm}`;
+}
+
+function isValidOnlineBookingServiceType(value) {
+  return ONLINE_BOOKING_SERVICE_TYPES.includes(String(value));
+}
+
+function normalizeOnlineBookingServiceType(value, defaultValue = "TREATMENT") {
+  if (value === undefined || value === null || value === "") return defaultValue;
+  return String(value).toUpperCase();
+}
+
+function getAllowedCategoriesForServiceType(serviceType) {
+  return serviceType === "CONSULTATION"
+    ? ONLINE_BOOKING_CONSULTATION_CATEGORIES
+    : ONLINE_BOOKING_TREATMENT_CATEGORIES;
 }
 
 async function getOrCreatePlaceholderPatient(branchId) {
@@ -112,37 +136,46 @@ router.get("/branches", async (_req, res) => {
 
 /**
  * GET /api/public/service-categories?branchId=:id
- * List distinct service categories available at the branch (via ServiceBranch + Service.isActive),
- * and include durationMinutes from ServiceCategoryConfig.
+ * Lists treatment categories available for online booking.
+ * - If branchId is provided: categories are filtered by that branch's active services.
+ * - If branchId is omitted: returns all active configured treatment categories.
  */
 router.get("/service-categories", async (req, res) => {
   try {
     const { branchId } = req.query;
-    if (!branchId) {
-      return res.status(400).json({ error: "branchId is required" });
+    let categories = [];
+    if (branchId !== undefined) {
+      const bid = Number(branchId);
+      if (Number.isNaN(bid)) {
+        return res.status(400).json({ error: "Invalid branchId" });
+      }
+
+      const serviceBranches = await prisma.serviceBranch.findMany({
+        where: {
+          branchId: bid,
+          service: { isActive: true },
+        },
+        select: {
+          service: { select: { category: true } },
+        },
+      });
+
+      categories = [...new Set(serviceBranches.map((sb) => sb.service.category))];
+    } else {
+      const allConfigs = await prisma.serviceCategoryConfig.findMany({
+        where: {
+          isActive: true,
+          category: { in: ONLINE_BOOKING_TREATMENT_CATEGORIES },
+        },
+        select: { category: true },
+      });
+      categories = allConfigs.map((cfg) => cfg.category);
     }
-    const bid = Number(branchId);
-    if (Number.isNaN(bid)) {
-      return res.status(400).json({ error: "Invalid branchId" });
-    }
 
-    // Find distinct active service categories available at the branch
-    const serviceBranches = await prisma.serviceBranch.findMany({
-      where: {
-        branchId: bid,
-        service: { isActive: true },
-      },
-      select: {
-        service: { select: { category: true } },
-      },
-    });
-
-    const categories = [...new Set(serviceBranches.map((sb) => sb.service.category))];
-
-    // Fetch duration configs for these categories
+    // Fetch duration configs for computed categories
     const configs = await prisma.serviceCategoryConfig.findMany({
       where: { category: { in: categories } },
-      select: { category: true, durationMinutes: true, isActive: true },
+      select: { category: true, durationMinutes: true },
     });
     const configMap = Object.fromEntries(configs.map((c) => [c.category, c]));
 
@@ -158,7 +191,7 @@ router.get("/service-categories", async (req, res) => {
     };
 
     const result = categories
-      .filter((cat) => cat !== "PREVIOUS") // exclude marker category
+      .filter((cat) => cat !== "PREVIOUS" && ONLINE_BOOKING_TREATMENT_CATEGORIES.includes(cat))
       .map((cat) => ({
         category: cat,
         label: categoryLabels[cat] || cat,
@@ -185,7 +218,7 @@ router.get("/service-categories", async (req, res) => {
  */
 router.get("/booking-grid", async (req, res) => {
   try {
-    const { branchId, category, date } = req.query;
+    const { branchId, category, date, serviceType: serviceTypeRaw } = req.query;
 
     if (!branchId || !category || !date) {
       return res.status(400).json({ error: "branchId, category, and date are required" });
@@ -195,7 +228,12 @@ router.get("/booking-grid", async (req, res) => {
     if (Number.isNaN(bid)) {
       return res.status(400).json({ error: "Invalid branchId" });
     }
-    if (!BOOKABLE_SERVICE_CATEGORIES.includes(String(category))) {
+    const serviceType = normalizeOnlineBookingServiceType(serviceTypeRaw, "TREATMENT");
+    if (!isValidOnlineBookingServiceType(serviceType)) {
+      return res.status(400).json({ error: "Invalid serviceType" });
+    }
+    const allowedCategories = getAllowedCategoriesForServiceType(serviceType);
+    if (!allowedCategories.includes(String(category))) {
       return res.status(400).json({ error: "Invalid category" });
     }
 
@@ -204,12 +242,12 @@ router.get("/booking-grid", async (req, res) => {
       return res.status(400).json({ error: "Invalid date (use YYYY-MM-DD)" });
     }
 
-    // Fetch durationMinutes for category
-    const categoryConfig = await prisma.serviceCategoryConfig.findUnique({
-      where: { category },
-      select: { durationMinutes: true },
-    });
-    const durationMinutes = categoryConfig?.durationMinutes ?? 30;
+    const durationMinutes = serviceType === "CONSULTATION"
+      ? 30
+      : (await prisma.serviceCategoryConfig.findUnique({
+          where: { category },
+          select: { durationMinutes: true },
+        }))?.durationMinutes ?? 30;
 
     const capableRows = await prisma.doctorServiceCategory.findMany({
       where: {
@@ -220,7 +258,7 @@ router.get("/booking-grid", async (req, res) => {
     });
     const capableDoctorIds = capableRows.map((r) => r.doctorId);
     if (capableDoctorIds.length === 0) {
-      return res.json({ doctors: [], slots: [], busy: [], durationMinutes });
+      return res.json({ doctors: [], slots: [], busy: [], durationMinutes, serviceType });
     }
 
     // Get eligible doctors: doctors with both capability and schedule at this branch+date
@@ -234,7 +272,7 @@ router.get("/booking-grid", async (req, res) => {
     });
 
     if (schedules.length === 0) {
-      return res.json({ doctors: [], slots: [], busy: [], durationMinutes });
+      return res.json({ doctors: [], slots: [], busy: [], durationMinutes, serviceType });
     }
 
     // Build doctor list and compute time slots per doctor
@@ -272,7 +310,7 @@ router.get("/booking-grid", async (req, res) => {
     // Build busy set: "doctorId:startTime"
     const busy = bookings.map((b) => `${b.doctorId}:${b.startTime}`);
 
-    return res.json({ doctors, slots, busy, durationMinutes });
+    return res.json({ doctors, slots, busy, durationMinutes, serviceType });
   } catch (err) {
     console.error("GET /api/public/booking-grid error:", err);
     return res.status(500).json({ error: "Failed to load booking grid" });
@@ -317,27 +355,21 @@ async function getDraftOrError(draftIdRaw, res) {
 /**
  * POST /api/public/online-booking/start
  * Initializes online booking Step 1 draft without creating/updating Patient.
- * Body: { branchId, ovog, name, phone, regNo }
+ * Body: { ovog, name, phone, regNo }
  */
 router.post("/online-booking/start", onlineBookingStartLimiter, async (req, res) => {
   try {
     const {
-      branchId,
       ovog,
       name,
       phone,
       regNo,
     } = req.body || {};
 
-    if (!branchId || !ovog || !name || !phone || !regNo) {
+    if (!ovog || !name || !phone || !regNo) {
       return res.status(400).json({
-        error: "branchId, ovog, name, phone, regNo are required",
+        error: "ovog, name, phone, regNo are required",
       });
-    }
-
-    const bid = Number(branchId);
-    if (Number.isNaN(bid)) {
-      return res.status(400).json({ error: "Invalid branchId" });
     }
 
     const normalizedRegNo = normalizeRegNo(regNo);
@@ -350,14 +382,6 @@ router.post("/online-booking/start", onlineBookingStartLimiter, async (req, res)
       return res.status(400).json({
         error: parsedRegNo.reason || "Invalid regNo format",
       });
-    }
-
-    const branch = await prisma.branch.findUnique({
-      where: { id: bid },
-      select: { id: true },
-    });
-    if (!branch) {
-      return res.status(400).json({ error: "Branch not found" });
     }
 
     const regNoMatches = await prisma.$queryRaw`
@@ -388,7 +412,6 @@ router.post("/online-booking/start", onlineBookingStartLimiter, async (req, res)
     const expiresAt = new Date(Date.now() + ONLINE_BOOKING_DRAFT_HOLD_MINUTES * 60 * 1000);
     const draft = await prisma.onlineBookingDraft.create({
       data: {
-        branchId: bid,
         matchedPatientId,
         matchStatus,
         ovog: String(ovog).trim(),
@@ -448,25 +471,72 @@ router.patch("/online-booking/drafts/:draftId", async (req, res) => {
       return res.status(410).json({ error: "Draft expired" });
     }
 
-    const { serviceCategory, selectedDate, selectedStartTime, selectedEndTime, branchId } = req.body || {};
-
-    if (branchId !== undefined && Number(branchId) !== draft.branchId) {
-      return res.status(400).json({ error: "branchId cannot be changed after Step 1" });
-    }
+    const {
+      serviceType: serviceTypeRaw,
+      serviceCategory,
+      selectedDate,
+      selectedStartTime,
+      selectedEndTime,
+      branchId,
+    } = req.body || {};
 
     const data = {};
+    const requestedServiceType = serviceTypeRaw === undefined
+      ? undefined
+      : normalizeOnlineBookingServiceType(serviceTypeRaw, "TREATMENT");
+
+    if (requestedServiceType !== undefined) {
+      if (!isValidOnlineBookingServiceType(requestedServiceType)) {
+        return res.status(400).json({ error: "Invalid serviceType" });
+      }
+      data.serviceType = requestedServiceType;
+    }
+
+    if (branchId !== undefined) {
+      if (branchId === null || branchId === "") {
+        data.branchId = null;
+      } else {
+        const bid = Number(branchId);
+        if (Number.isNaN(bid)) {
+          return res.status(400).json({ error: "Invalid branchId" });
+        }
+        const branch = await prisma.branch.findUnique({
+          where: { id: bid },
+          select: { id: true },
+        });
+        if (!branch) {
+          return res.status(400).json({ error: "Branch not found" });
+        }
+        data.branchId = bid;
+      }
+    }
+
     if (serviceCategory !== undefined) {
-      if (!BOOKABLE_SERVICE_CATEGORIES.includes(String(serviceCategory))) {
+      const effectiveServiceType = requestedServiceType || draft.serviceType || "TREATMENT";
+      const allowedCategories = getAllowedCategoriesForServiceType(effectiveServiceType);
+      if (!allowedCategories.includes(String(serviceCategory))) {
         return res.status(400).json({ error: "Invalid serviceCategory" });
       }
-      const categoryConfig = await prisma.serviceCategoryConfig.findUnique({
-        where: { category: serviceCategory },
-        select: { category: true },
-      });
-      if (!categoryConfig) {
-        return res.status(400).json({ error: "Invalid serviceCategory" });
+      if (effectiveServiceType === "TREATMENT") {
+        const categoryConfig = await prisma.serviceCategoryConfig.findUnique({
+          where: { category: serviceCategory },
+          select: { category: true },
+        });
+        if (!categoryConfig) {
+          return res.status(400).json({ error: "Invalid serviceCategory" });
+        }
       }
       data.serviceCategory = serviceCategory;
+      if (!requestedServiceType && !draft.serviceType) {
+        data.serviceType = "TREATMENT";
+      }
+    } else if (requestedServiceType && draft.serviceCategory) {
+      const allowedCategories = getAllowedCategoriesForServiceType(requestedServiceType);
+      if (!allowedCategories.includes(draft.serviceCategory)) {
+        return res.status(400).json({
+          error: "Selected serviceCategory is incompatible with serviceType",
+        });
+      }
     }
 
     if (selectedDate !== undefined) {
@@ -499,6 +569,7 @@ router.patch("/online-booking/drafts/:draftId", async (req, res) => {
         status: true,
         matchStatus: true,
         branchId: true,
+        serviceType: true,
         serviceCategory: true,
         selectedDate: true,
         selectedStartTime: true,
@@ -512,6 +583,7 @@ router.patch("/online-booking/drafts/:draftId", async (req, res) => {
       status: updated.status,
       matchStatus: updated.matchStatus,
       branchId: updated.branchId,
+      serviceType: updated.serviceType,
       serviceCategory: updated.serviceCategory,
       selectedDate: updated.selectedDate ? updated.selectedDate.toISOString().slice(0, 10) : null,
       selectedStartTime: updated.selectedStartTime,
@@ -558,15 +630,26 @@ router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => 
     if (!isValidTime(startTime)) {
       return res.status(400).json({ error: "startTime must be HH:MM (24h)" });
     }
-    if (!draft.selectedDate || !draft.serviceCategory) {
-      return res.status(400).json({ error: "Draft is missing selectedDate or serviceCategory" });
+    if (!draft.selectedDate || !draft.serviceCategory || !draft.branchId) {
+      return res.status(400).json({
+        error: "Draft is missing selectedDate, serviceCategory, or branchId",
+      });
+    }
+    const serviceType = normalizeOnlineBookingServiceType(draft.serviceType, "TREATMENT");
+    if (!isValidOnlineBookingServiceType(serviceType)) {
+      return res.status(400).json({ error: "Invalid draft serviceType" });
+    }
+    const allowedCategories = getAllowedCategoriesForServiceType(serviceType);
+    if (!allowedCategories.includes(draft.serviceCategory)) {
+      return res.status(400).json({ error: "Invalid draft serviceCategory for selected serviceType" });
     }
 
-    const categoryConfig = await prisma.serviceCategoryConfig.findUnique({
-      where: { category: draft.serviceCategory },
-      select: { durationMinutes: true },
-    });
-    const durationMinutes = categoryConfig?.durationMinutes ?? 30;
+    const durationMinutes = serviceType === "CONSULTATION"
+      ? 30
+      : (await prisma.serviceCategoryConfig.findUnique({
+          where: { category: draft.serviceCategory },
+          select: { durationMinutes: true },
+        }))?.durationMinutes ?? 30;
     const endTime = addMinutes(startTime, durationMinutes);
 
     const doctor = await prisma.user.findUnique({
@@ -588,8 +671,9 @@ router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => 
       return res.status(400).json({ error: "Doctor cannot perform selected treatment category" });
     }
 
+    const branchId = draft.branchId;
     const schedule = await prisma.doctorSchedule.findFirst({
-      where: { doctorId: did, branchId: draft.branchId, date: draft.selectedDate },
+      where: { doctorId: did, branchId, date: draft.selectedDate },
       select: { startTime: true, endTime: true },
     });
     if (!schedule) {
@@ -634,12 +718,12 @@ router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => 
       return res.status(409).json({ error: "Time slot is already taken" });
     }
 
-    const placeholder = await getOrCreatePlaceholderPatient(draft.branchId);
+    const placeholder = await getOrCreatePlaceholderPatient(branchId);
     const booking = await prisma.booking.create({
       data: {
         patientId: placeholder.id,
         doctorId: did,
-        branchId: draft.branchId,
+        branchId,
         date: draft.selectedDate,
         startTime,
         endTime,
@@ -662,7 +746,7 @@ router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => 
         amount: DEPOSIT_AMOUNT,
         description,
         callback_url: callbackUrl,
-        branchId: draft.branchId,
+        branchId,
       });
     } catch (qpayErr) {
       await prisma.booking.delete({ where: { id: booking.id } }).catch(() => {});
@@ -675,7 +759,7 @@ router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => 
       prisma.bookingDeposit.create({
         data: {
           bookingId: booking.id,
-          branchId: draft.branchId,
+          branchId,
           amount: DEPOSIT_AMOUNT,
           status: "NEW",
           holdExpiresAt,
