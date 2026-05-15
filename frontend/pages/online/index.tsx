@@ -1,7 +1,7 @@
 // frontend/pages/online/index.tsx
 // Public online booking mini-site – served at online.mdent.mn
 // No admin sidebar; responsive; step-based UI.
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,6 +12,7 @@ type ServiceCategory = {
   label: string;
   durationMinutes: number;
 };
+type OnlineBookingServiceType = "CONSULTATION" | "TREATMENT";
 
 type Doctor = {
   id: number;
@@ -50,8 +51,8 @@ type PersonalInfo = {
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
 // 1 = personal details
-// 2 = branch + category selection
-// 3 = date picker
+// 2 = service type + category selection
+// 3 = branch + date
 // 4 = booking grid
 // 5 = payment
 // 6 = confirmation / expired
@@ -106,6 +107,21 @@ const BTN_GHOST: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const CONSULTATION_CATEGORY_ORDER = [
+  "ORTHODONTIC_TREATMENT",
+  "ADULT_TREATMENT",
+  "SURGERY",
+  "DEFECT_CORRECTION",
+  "CHILD_TREATMENT",
+];
+const CONSULTATION_CATEGORY_LABELS: Record<string, string> = {
+  ORTHODONTIC_TREATMENT: "Гажиг заслын зөвлөгөө",
+  ADULT_TREATMENT: "Том хүний эмчилгээний зөвлөгөө",
+  SURGERY: "Мэс заслын зөвлөгөө",
+  DEFECT_CORRECTION: "Согог заслын зөвлөгөө",
+  CHILD_TREATMENT: "Хүүхдийн эмчилгээний зөвлөгөө",
+};
+
 // ─── Page Component ───────────────────────────────────────────────────────────
 
 export default function OnlineBookingPage() {
@@ -120,14 +136,15 @@ export default function OnlineBookingPage() {
   const [startLoading, setStartLoading] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
 
-  // Step 2 – branch + category
+  // Step 2 – service type + category
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [selectedServiceType, setSelectedServiceType] = useState<OnlineBookingServiceType>("TREATMENT");
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | null>(null);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
-  // Step 3 – date
+  // Step 3 – branch + date
   const [selectedDate, setSelectedDate] = useState<string>(todayStr());
 
   // Step 4 – grid
@@ -167,21 +184,30 @@ export default function OnlineBookingPage() {
       .catch(() => {});
   }, []);
 
-  // ── Load categories when branch changes ──────────────────────────────────
+  // ── Load treatment categories (branch-agnostic) ─────────────────────────
 
   useEffect(() => {
-    if (!selectedBranchId) return;
     setLoadingCategories(true);
     setCategories([]);
-    setSelectedCategory(null);
-    fetch(`/api/public/service-categories?branchId=${selectedBranchId}`)
+    fetch("/api/public/service-categories")
       .then((r) => r.json())
       .then((data: ServiceCategory[]) => {
         if (Array.isArray(data)) setCategories(data);
       })
       .catch(() => {})
       .finally(() => setLoadingCategories(false));
-  }, [selectedBranchId]);
+  }, []);
+
+  const displayedCategories = useMemo<ServiceCategory[]>(() => {
+    if (selectedServiceType === "CONSULTATION") {
+      return CONSULTATION_CATEGORY_ORDER.map((category) => ({
+        category,
+        label: CONSULTATION_CATEGORY_LABELS[category] || category,
+        durationMinutes: 30,
+      }));
+    }
+    return categories;
+  }, [categories, selectedServiceType]);
 
   // ── Load grid when entering step 4 ───────────────────────────────────────
 
@@ -191,7 +217,7 @@ export default function OnlineBookingPage() {
     setGridError(null);
     setGrid(null);
     try {
-      const url = `/api/public/booking-grid?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}`;
+      const url = `/api/public/booking-grid?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}&serviceType=${selectedServiceType}`;
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) {
@@ -204,7 +230,7 @@ export default function OnlineBookingPage() {
     } finally {
       setLoadingGrid(false);
     }
-  }, [selectedBranchId, selectedCategory, selectedDate]);
+  }, [selectedBranchId, selectedCategory, selectedDate, selectedServiceType]);
 
   useEffect(() => {
     if (step === 4) loadGrid();
@@ -296,10 +322,6 @@ export default function OnlineBookingPage() {
 
   async function handleStep1Continue() {
     if (!validatePersonalInfo()) return;
-    if (!selectedBranchId) {
-      setStartError("Салбарын мэдээлэл ачааллаж байна. Түр хүлээнэ үү.");
-      return;
-    }
 
     setStartLoading(true);
     setStartError(null);
@@ -308,7 +330,6 @@ export default function OnlineBookingPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          branchId: selectedBranchId,
           ovog: info.ovog,
           name: info.name,
           phone: info.phone,
@@ -341,6 +362,7 @@ export default function OnlineBookingPage() {
     try {
       const syncOk = await updateDraft(
         {
+          serviceType: selectedServiceType,
           serviceCategory: selectedCategory.category,
           selectedDate,
           selectedStartTime: slotTime,
@@ -391,6 +413,9 @@ export default function OnlineBookingPage() {
     setBookingSummary(null);
     setPaymentStatus("PENDING");
     setGrid(null);
+    setSelectedServiceType("TREATMENT");
+    setSelectedCategory(null);
+    setSelectedDate(todayStr());
     setDraftId(null);
     setDraftMatchStatus(null);
     setDraftExpiresAt(null);
@@ -401,7 +426,7 @@ export default function OnlineBookingPage() {
 
   // ── Render helpers ───────────────────────────────────────────────────────
 
-  const progressSteps = ["Мэдээлэл", "Үйлчилгээ", "Өдөр", "Цаг", "Төлбөр"];
+  const progressSteps = ["Мэдээлэл", "Үйлчилгээ", "Салбар/Өдөр", "Цаг", "Төлбөр"];
 
   function renderProgress() {
     const activeStep = step > 5 ? 5 : step;
@@ -489,9 +514,9 @@ export default function OnlineBookingPage() {
   function renderStep2() {
     return (
       <div>
-        <h2 style={{ fontSize: 18, marginBottom: 4 }}>Салбар болон үйлчилгээ сонгох</h2>
+        <h2 style={{ fontSize: 18, marginBottom: 4 }}>Үйлчилгээ сонгох</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
-          Та аль салбарт, ямар үйлчилгээ авахыг сонгоно уу.
+          Үйлчилгээний төрөл болон ангиллаа сонгоно уу.
         </p>
         {draftMatchStatus === "EXISTING" && (
           <div style={{ marginBottom: 12, borderRadius: 8, border: "1px solid #fcd34d", background: "#fffbeb", padding: "10px 12px", color: "#92400e", fontSize: 12 }}>
@@ -515,30 +540,53 @@ export default function OnlineBookingPage() {
         )}
         <div style={{ marginBottom: 18 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-            Салбар
+            Үйлчилгээний төрөл *
           </label>
-          <select
-            style={{ ...INPUT_STYLE, background: "#fff" }}
-            value={selectedBranchId ?? ""}
-            onChange={(e) => setSelectedBranchId(Number(e.target.value))}
-            disabled={Boolean(draftId)}
-          >
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              { value: "CONSULTATION", label: "Зөвлөгөө" },
+              { value: "TREATMENT", label: "Эмчилгээ" },
+            ].map((opt) => {
+              const selected = selectedServiceType === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setSelectedServiceType(opt.value as OnlineBookingServiceType);
+                    setSelectedCategory(null);
+                    setStartError(null);
+                  }}
+                  style={{
+                    textAlign: "center",
+                    padding: "10px 12px",
+                    border: `2px solid ${selected ? "#f97316" : "#e5e7eb"}`,
+                    borderRadius: 10,
+                    background: selected ? "#fff7ed" : "#fff",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    color: selected ? "#ea580c" : "#374151",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>
-            Үйлчилгээний төрөл *
+            Үйлчилгээний ангилал *
           </label>
-          {loadingCategories && <p style={{ color: "#6b7280", fontSize: 13 }}>Ачааллаж байна...</p>}
-          {!loadingCategories && categories.length === 0 && (
-            <p style={{ color: "#6b7280", fontSize: 13 }}>Энэ салбарт үйлчилгээ байхгүй байна.</p>
+          {loadingCategories && selectedServiceType === "TREATMENT" && (
+            <p style={{ color: "#6b7280", fontSize: 13 }}>Ачааллаж байна...</p>
+          )}
+          {!loadingCategories && displayedCategories.length === 0 && (
+            <p style={{ color: "#6b7280", fontSize: 13 }}>Онлайн захиалгад тохирох үйлчилгээ олдсонгүй.</p>
           )}
           <div style={{ display: "grid", gap: 10 }}>
-            {categories.map((cat) => {
+            {displayedCategories.map((cat) => {
               const selected = selectedCategory?.category === cat.category;
               return (
                 <button
@@ -575,14 +623,11 @@ export default function OnlineBookingPage() {
             onClick={async () => {
               if (!selectedCategory) return;
               setStartError(null);
-              const draftPatch: Record<string, unknown> = {
-                serviceCategory: selectedCategory.category,
-              };
-              if (selectedBranchId != null) {
-                draftPatch.branchId = selectedBranchId;
-              }
               const ok = await updateDraft(
-                draftPatch,
+                {
+                  serviceType: selectedServiceType,
+                  serviceCategory: selectedCategory.category,
+                },
                 "Үйлчилгээний мэдээлэл хадгалах үед алдаа гарлаа."
               );
               if (!ok) return;
@@ -599,10 +644,25 @@ export default function OnlineBookingPage() {
   function renderStep3() {
     return (
       <div>
-        <h2 style={{ fontSize: 18, marginBottom: 4 }}>Өдөр сонгох</h2>
+        <h2 style={{ fontSize: 18, marginBottom: 4 }}>Салбар болон өдөр сонгох</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
-          Цаг авах өдрөө сонгоно уу.
+          Эмчийн боломжит цаг харахын тулд салбар болон өдрөө сонгоно уу.
         </p>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+            Салбар *
+          </label>
+          <select
+            style={{ ...INPUT_STYLE, background: "#fff" }}
+            value={selectedBranchId ?? ""}
+            onChange={(e) => setSelectedBranchId(Number(e.target.value))}
+          >
+            <option value="" disabled>Салбар сонгоно уу</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
         <input
           type="date"
           style={INPUT_STYLE}
@@ -622,13 +682,18 @@ export default function OnlineBookingPage() {
           <button style={BTN_GHOST} onClick={() => setStep(2)}>← Буцах</button>
           <button
             style={BTN_PRIMARY}
-            disabled={!selectedDate}
+            disabled={!selectedDate || !selectedBranchId}
             onClick={async () => {
-              if (!selectedDate) return;
+              if (!selectedDate || !selectedBranchId) return;
               setStartError(null);
               const ok = await updateDraft(
-                { selectedDate },
-                "Өдрийн мэдээлэл хадгалах үед алдаа гарлаа."
+                {
+                  branchId: selectedBranchId,
+                  selectedDate,
+                  selectedStartTime: null,
+                  selectedEndTime: null,
+                },
+                "Салбар, өдрийн мэдээлэл хадгалах үед алдаа гарлаа."
               );
               if (!ok) return;
               setStep(4);
@@ -646,7 +711,7 @@ export default function OnlineBookingPage() {
       <div>
         <h2 style={{ fontSize: 18, marginBottom: 4 }}>Цаг сонгох</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 4 }}>
-          {selectedCategory?.label} · {selectedDate} · {selectedCategory?.durationMinutes} минут
+          {selectedCategory?.label} · {selectedDate} · {grid?.durationMinutes ?? selectedCategory?.durationMinutes} минут
         </p>
         <p style={{ color: "#6b7280", fontSize: 12, marginBottom: 16 }}>
           Боломжтой цаг дээр дарж захиална уу. "Захиалгатай" гэсэн цаг захиалах боломжгүй.

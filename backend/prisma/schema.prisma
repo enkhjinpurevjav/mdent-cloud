@@ -79,6 +79,11 @@ enum OnlineBookingMatchStatus {
   DUPLICATE_NEEDS_REVIEW
 }
 
+enum OnlineBookingServiceType {
+  CONSULTATION
+  TREATMENT
+}
+
 // NEW: discount levels explicitly constrained
 enum DiscountPercent {
   ZERO // 0%
@@ -1127,8 +1132,8 @@ model BookingDeposit {
 
 model OnlineBookingDraft {
   id               Int                      @id @default(autoincrement())
-  branchId         Int
-  branch           Branch                   @relation(fields: [branchId], references: [id])
+  branchId         Int?
+  branch           Branch?                  @relation(fields: [branchId], references: [id])
   matchedPatientId Int?
   matchedPatient   Patient?                 @relation("MatchedPatientOnlineBookingDrafts", fields: [matchedPatientId], references: [id])
   bookingId        Int?                     @unique
@@ -1136,6 +1141,7 @@ model OnlineBookingDraft {
 
   status           OnlineBookingDraftStatus @default(PENDING_PAYMENT)
   matchStatus      OnlineBookingMatchStatus @default(NEW)
+  serviceType      OnlineBookingServiceType?
 
   ovog             String
   name             String
