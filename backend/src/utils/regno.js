@@ -6,9 +6,9 @@
 // - Gender digit: 2nd from last digit overall (tens digit of SS)
 //     odd => male ("эр"), even including 0 => female ("эм")
 
-function normalizeRegNo(input) {
+export function normalizeRegNo(input) {
   if (input == null) return null;
-  return String(input).trim().toUpperCase();
+  return String(input).trim().toUpperCase().replace(/\s+/g, "");
 }
 
 export function parseRegNo(regNoRaw) {

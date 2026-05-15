@@ -42,6 +42,7 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
+  deallocatePaymentProportionalByAllocated,
 } from "../../utils/incomeHelpers.js";
 
 const router = express.Router();
@@ -204,7 +205,7 @@ function computeIncomeFromInvoices(
             Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt)
           );
         }
-      } else {
+      } else if (payAmt > 0) {
         const allocs = allocatePaymentProportionalByRemaining(
           payAmt,
           serviceLineIds,
@@ -212,6 +213,15 @@ function computeIncomeFromInvoices(
         );
         for (const [id, amt] of allocs) {
           itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+        }
+      } else if (payAmt < 0) {
+        const deallocs = deallocatePaymentProportionalByAllocated(
+          Math.abs(payAmt),
+          serviceLineIds,
+          itemAllocationBase
+        );
+        for (const [id, amt] of deallocs) {
+          remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
         }
       }
     }
@@ -371,7 +381,7 @@ function computeSalesFromInvoices(
           itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
           remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
         }
-      } else {
+      } else if (payAmt > 0) {
         const allocs = allocatePaymentProportionalByRemaining(
           payAmt,
           serviceLineIds,
@@ -379,6 +389,15 @@ function computeSalesFromInvoices(
         );
         for (const [id, amt] of allocs) {
           itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+        }
+      } else if (payAmt < 0) {
+        const deallocs = deallocatePaymentProportionalByAllocated(
+          Math.abs(payAmt),
+          serviceLineIds,
+          itemAllocationBase
+        );
+        for (const [id, amt] of deallocs) {
+          remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
         }
       }
     }

@@ -73,6 +73,7 @@ import {
 } from "./middleware/auth.js";
 import rateLimit from "express-rate-limit";
 import { autoCloseOpenAttendanceSessions } from "./services/attendanceAutoClose.js";
+import { cleanupExpiredOnlineBookingDrafts } from "./services/onlineBookingDraftCleanup.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -406,6 +407,48 @@ app.listen(port, () => {
     }, intervalMs);
     timer.unref?.();
     log.info({ intervalMs }, "attendance auto-close job started");
+  }
+
+  const onlineDraftCleanupDisabled =
+    process.env.DISABLE_ONLINE_BOOKING_DRAFT_CLEANUP_JOB === "true";
+  const onlineDraftCleanupIntervalRaw = Number(
+    process.env.ONLINE_BOOKING_DRAFT_CLEANUP_INTERVAL_MS
+  );
+  const onlineDraftCleanupIntervalMs =
+    Number.isFinite(onlineDraftCleanupIntervalRaw) &&
+    onlineDraftCleanupIntervalRaw > 0
+      ? onlineDraftCleanupIntervalRaw
+      : 60_000;
+
+  if (onlineDraftCleanupDisabled) {
+    log.info("online booking draft cleanup job disabled");
+  } else {
+    const runOnlineDraftCleanup = async () => {
+      try {
+        const result = await cleanupExpiredOnlineBookingDrafts();
+        if (result.markedExpiredCount > 0 || result.deletedCount > 0) {
+          log.info(
+            {
+              markedExpiredCount: result.markedExpiredCount,
+              deletedCount: result.deletedCount,
+            },
+            "online booking draft cleanup applied"
+          );
+        }
+      } catch (err) {
+        log.error({ err }, "online booking draft cleanup job failed");
+      }
+    };
+
+    void runOnlineDraftCleanup();
+    const cleanupTimer = setInterval(() => {
+      void runOnlineDraftCleanup();
+    }, onlineDraftCleanupIntervalMs);
+    cleanupTimer.unref?.();
+    log.info(
+      { intervalMs: onlineDraftCleanupIntervalMs },
+      "online booking draft cleanup job started"
+    );
   }
 
   if (process.env.RUN_SEED === "true") {

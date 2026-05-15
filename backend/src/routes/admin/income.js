@@ -4,6 +4,7 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
+  deallocatePaymentProportionalByAllocated,
   computeOverrideSalesFromAllocations,
 } from "../../utils/incomeHelpers.js";
 import {
@@ -525,11 +526,20 @@ export async function computeDoctorsIncomeData({
           itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
           remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
         }
-      } else {
+      } else if (payAmt > 0) {
         // Proportional allocation by remaining due across all service lines (mutates remainingDue).
         const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
         for (const [id, amt] of allocs) {
           itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+        }
+      } else if (payAmt < 0) {
+        const deallocs = deallocatePaymentProportionalByAllocated(
+          Math.abs(payAmt),
+          serviceLineIds,
+          itemAllocationBase
+        );
+        for (const [id, amt] of deallocs) {
+          remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
         }
       }
     }
@@ -757,10 +767,19 @@ async function computeDoctorsGeneratedSalesForIncomeDetailed({ start, endExclusi
           itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
           remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
         }
-      } else {
+      } else if (payAmt > 0) {
         const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
         for (const [id, amt] of allocs) {
           itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+        }
+      } else if (payAmt < 0) {
+        const deallocs = deallocatePaymentProportionalByAllocated(
+          Math.abs(payAmt),
+          serviceLineIds,
+          itemAllocationBase
+        );
+        for (const [id, amt] of deallocs) {
+          remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
         }
       }
     }
@@ -868,10 +887,19 @@ async function computeImagingProductionByPaymentForIncomeDetailed({ start, endEx
           itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
           remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
         }
-      } else {
+      } else if (payAmt > 0) {
         const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
         for (const [id, amt] of allocs) {
           itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+        }
+      } else if (payAmt < 0) {
+        const deallocs = deallocatePaymentProportionalByAllocated(
+          Math.abs(payAmt),
+          serviceLineIds,
+          itemAllocationBase
+        );
+        for (const [id, amt] of deallocs) {
+          remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
         }
       }
     }
@@ -1588,11 +1616,20 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
             itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
             remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
           }
-        } else {
+        } else if (payAmt > 0) {
           // Proportional allocation by remaining due across all service lines (mutates remainingDue).
           const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
           for (const [id, amt] of allocs) {
             itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+          }
+        } else if (payAmt < 0) {
+          const deallocs = deallocatePaymentProportionalByAllocated(
+            Math.abs(payAmt),
+            serviceLineIds,
+            itemAllocationBase
+          );
+          for (const [id, amt] of deallocs) {
+            remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
           }
         }
       }
@@ -1844,10 +1881,19 @@ router.get("/doctors-income/:doctorId/details/lines", async (req, res) => {
             itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
             remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
           }
-        } else {
+        } else if (payAmt > 0) {
           const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
           for (const [id, amt] of allocs) {
             itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+          }
+        } else if (payAmt < 0) {
+          const deallocs = deallocatePaymentProportionalByAllocated(
+            Math.abs(payAmt),
+            serviceLineIds,
+            itemAllocationBase
+          );
+          for (const [id, amt] of deallocs) {
+            remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
           }
         }
       }
@@ -2100,10 +2146,19 @@ router.get("/nurses-income", async (req, res) => {
             itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
             remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
           }
-        } else {
+        } else if (payAmt > 0) {
           const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
           for (const [id, amt] of allocs) {
             itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+          }
+        } else if (payAmt < 0) {
+          const deallocs = deallocatePaymentProportionalByAllocated(
+            Math.abs(payAmt),
+            serviceLineIds,
+            itemAllocationBase
+          );
+          for (const [id, amt] of deallocs) {
+            remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
           }
         }
       }
@@ -2324,10 +2379,19 @@ router.get("/nurses-income/:nurseId/details", async (req, res) => {
             itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
             remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
           }
-        } else {
+        } else if (payAmt > 0) {
           const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
           for (const [id, amt] of allocs) {
             itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+          }
+        } else if (payAmt < 0) {
+          const deallocs = deallocatePaymentProportionalByAllocated(
+            Math.abs(payAmt),
+            serviceLineIds,
+            itemAllocationBase
+          );
+          for (const [id, amt] of deallocs) {
+            remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
           }
         }
       }

@@ -2,10 +2,13 @@ import express from "express";
 import prisma from "../db.js";
 import * as qpayService from "../services/qpayService.js";
 import { BookingStatus } from "@prisma/client";
+import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
+import { ensureOnlineAppointmentForBooking } from "../services/onlineBookingAppointmentSync.js";
+import { ensureOnlineBookingPatientForPayment } from "../services/onlineBookingPatientSync.js";
 
 const router = express.Router();
 
-const DEPOSIT_AMOUNT = 30_000;
+const ONLINE_BOOKING_DEPOSIT_AMOUNT = getOnlineBookingDepositAmount();
 
 /**
  * POST /api/qpay/invoice
@@ -188,16 +191,27 @@ async function handleBookingCallback(bookingId, token) {
     }
 
     // Already settled
-    if (deposit.status === "PAID" || deposit.status === "EXPIRED" || deposit.status === "CANCELLED") {
+    if (deposit.status === "PAID") {
+      await prisma.$transaction(async (tx) => {
+        await tx.booking.update({
+          where: { id: bid },
+          data: { status: BookingStatus.ONLINE_CONFIRMED },
+        });
+        await ensureOnlineBookingPatientForPayment(tx, bid);
+        await ensureOnlineAppointmentForBooking(tx, bid);
+      });
+      return;
+    }
+    if (deposit.status === "EXPIRED" || deposit.status === "CANCELLED") {
       return;
     }
 
     // Call payment/check as source of truth
     const checkResult = await qpayService.checkInvoicePaid(deposit.qpayInvoiceId, deposit.branchId);
 
-    if (checkResult.paid && checkResult.paidAmount >= DEPOSIT_AMOUNT) {
-      await prisma.$transaction([
-        prisma.bookingDeposit.update({
+    if (checkResult.paid && checkResult.paidAmount >= ONLINE_BOOKING_DEPOSIT_AMOUNT) {
+      await prisma.$transaction(async (tx) => {
+        await tx.bookingDeposit.update({
           where: { bookingId: bid },
           data: {
             status: "PAID",
@@ -206,12 +220,14 @@ async function handleBookingCallback(bookingId, token) {
             paidAt: checkResult.paidAt ? new Date(checkResult.paidAt) : new Date(),
             raw: checkResult.raw,
           },
-        }),
-        prisma.booking.update({
+        });
+        await tx.booking.update({
           where: { id: bid },
           data: { status: BookingStatus.ONLINE_CONFIRMED },
-        }),
-      ]);
+        });
+        await ensureOnlineBookingPatientForPayment(tx, bid);
+        await ensureOnlineAppointmentForBooking(tx, bid);
+      });
       console.log(`QPay booking callback: bookingId=${bid} confirmed`);
     }
   } catch (err) {

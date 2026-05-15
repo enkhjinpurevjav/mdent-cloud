@@ -127,6 +127,67 @@ export function allocatePaymentProportionalByRemaining(paymentAmount, lineIds, r
 }
 
 /**
+ * De-allocate a returned amount proportionally across already allocated lines.
+ *
+ * This is the reversal counterpart of allocatePaymentProportionalByRemaining:
+ *  - Payment reversals are stored as negative payments.
+ *  - We need to reduce per-line paid allocations without changing commission logic.
+ *
+ * @param {number} reversalAmount - Positive amount to reverse (integer MNT).
+ * @param {number[]} lineIds - Ordered list of service line IDs.
+ * @param {Map<number, number>} allocatedByItem - Mutable map of lineId -> allocated paid amount.
+ * @returns {Map<number, number>} Map from lineId -> reversed amount for this reversal.
+ */
+export function deallocatePaymentProportionalByAllocated(
+  reversalAmount,
+  lineIds,
+  allocatedByItem
+) {
+  const result = new Map();
+  if (lineIds.length === 0 || reversalAmount <= 0) return result;
+
+  const totalAllocated = lineIds.reduce(
+    (sum, id) => sum + Math.max(0, allocatedByItem.get(id) || 0),
+    0
+  );
+  if (totalAllocated <= 0) {
+    for (const id of lineIds) result.set(id, 0);
+    return result;
+  }
+
+  const R = Math.min(reversalAmount, totalAllocated);
+  const deallocs = new Map();
+  let deallocated = 0;
+  const fracs = [];
+
+  for (const id of lineIds) {
+    const allocated = Math.max(0, allocatedByItem.get(id) || 0);
+    const exact = R * (allocated / totalAllocated);
+    const floored = Math.min(allocated, Math.floor(exact));
+    deallocs.set(id, floored);
+    deallocated += floored;
+    fracs.push({ id, capacity: allocated - floored, frac: exact - Math.floor(exact) });
+  }
+
+  let leftover = R - deallocated;
+  fracs.sort((a, b) => b.frac - a.frac || b.capacity - a.capacity);
+  for (const { id, capacity } of fracs) {
+    if (leftover <= 0) break;
+    const add = Math.min(leftover, capacity);
+    deallocs.set(id, (deallocs.get(id) || 0) + add);
+    leftover -= add;
+  }
+
+  for (const id of lineIds) {
+    const d = deallocs.get(id) || 0;
+    result.set(id, d);
+    allocatedByItem.set(id, Math.max(0, (allocatedByItem.get(id) || 0) - d));
+  }
+
+  return result;
+}
+
+/**
  * Sum override-method doctor sales from actual paid allocations.
  *
  * Override payment methods (insurance/application/wallet) keep the existing 0.9

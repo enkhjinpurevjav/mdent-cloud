@@ -1,7 +1,7 @@
 // frontend/pages/online/index.tsx
 // Public online booking mini-site – served at online.mdent.mn
 // No admin sidebar; responsive; step-based UI.
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -12,23 +12,32 @@ type ServiceCategory = {
   label: string;
   durationMinutes: number;
 };
+type OnlineBookingServiceType = "CONSULTATION" | "TREATMENT";
 
 type Doctor = {
   id: number;
   name: string;
+  ovog?: string | null;
   scheduleStart: string;
   scheduleEnd: string;
 };
 
 type BookingGrid = {
   doctors: Doctor[];
-  slots: string[]; // "HH:MM"
-  busy: string[]; // "doctorId:startTime"
   durationMinutes: number;
+  serviceType?: OnlineBookingServiceType;
+};
+
+type DoctorAvailableSlotsResponse = {
+  doctor: Doctor | null;
+  availableSlots: string[];
+  durationMinutes: number;
+  serviceType?: OnlineBookingServiceType;
 };
 
 type HoldResponse = {
   bookingId: number;
+  depositAmount?: number;
   expiresAt: string;
   qpayInvoiceId: string;
   qrText: string;
@@ -37,6 +46,7 @@ type HoldResponse = {
 };
 
 type PaymentStatus = "PENDING" | "PAID" | "EXPIRED";
+type DraftMatchStatus = "NEW" | "EXISTING" | "DUPLICATE_NEEDS_REVIEW";
 
 // ─── Personal info ─────────────────────────────────────────────────────────
 
@@ -49,8 +59,8 @@ type PersonalInfo = {
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
 // 1 = personal details
-// 2 = branch + category selection
-// 3 = date picker
+// 2 = service type + category selection
+// 3 = branch + date
 // 4 = booking grid
 // 5 = payment
 // 6 = confirmation / expired
@@ -72,6 +82,25 @@ function addMinutes(timeStr: string, minutes: number): string {
 function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function formatDoctorShortName(fullName: string, ovog?: string | null): string {
+  const cleanName = String(fullName || "").trim();
+  const nameParts = cleanName.split(/\s+/).filter(Boolean);
+  const displayName = nameParts.length > 0 ? nameParts[nameParts.length - 1] : cleanName;
+
+  const cleanOvog = String(ovog || "").trim();
+  if (cleanOvog && displayName) {
+    return `${cleanOvog.charAt(0).toUpperCase()}.${displayName}`;
+  }
+
+  if (nameParts.length >= 2) {
+    const firstInitial = nameParts[0].charAt(0).toUpperCase();
+    const lastName = nameParts[nameParts.length - 1];
+    return `${firstInitial}.${lastName}`;
+  }
+
+  return cleanName;
 }
 
 const INPUT_STYLE: React.CSSProperties = {
@@ -105,6 +134,21 @@ const BTN_GHOST: React.CSSProperties = {
   cursor: "pointer",
 };
 
+const CONSULTATION_CATEGORY_ORDER = [
+  "ORTHODONTIC_TREATMENT",
+  "ADULT_TREATMENT",
+  "SURGERY",
+  "DEFECT_CORRECTION",
+  "CHILD_TREATMENT",
+];
+const CONSULTATION_CATEGORY_LABELS: Record<string, string> = {
+  ORTHODONTIC_TREATMENT: "Гажиг заслын зөвлөгөө",
+  ADULT_TREATMENT: "Том хүний эмчилгээний зөвлөгөө",
+  SURGERY: "Мэс заслын зөвлөгөө",
+  DEFECT_CORRECTION: "Согог заслын зөвлөгөө",
+  CHILD_TREATMENT: "Хүүхдийн эмчилгээний зөвлөгөө",
+};
+
 // ─── Page Component ───────────────────────────────────────────────────────────
 
 export default function OnlineBookingPage() {
@@ -113,21 +157,37 @@ export default function OnlineBookingPage() {
   // Step 1 – personal details
   const [info, setInfo] = useState<PersonalInfo>({ ovog: "", name: "", phone: "", regNo: "" });
   const [infoErrors, setInfoErrors] = useState<Partial<PersonalInfo>>({});
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [draftMatchStatus, setDraftMatchStatus] = useState<DraftMatchStatus | null>(null);
+  const [draftExpiresAt, setDraftExpiresAt] = useState<string | null>(null);
+  const [startLoading, setStartLoading] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
-  // Step 2 – branch + category
+  // Step 2 – service type + category
   const [branches, setBranches] = useState<Branch[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
+  const [selectedServiceType, setSelectedServiceType] = useState<OnlineBookingServiceType>("TREATMENT");
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory | null>(null);
   const [loadingCategories, setLoadingCategories] = useState(false);
 
-  // Step 3 – date
+  // Step 3 – branch + date
   const [selectedDate, setSelectedDate] = useState<string>(todayStr());
 
   // Step 4 – grid
   const [grid, setGrid] = useState<BookingGrid | null>(null);
   const [loadingGrid, setLoadingGrid] = useState(false);
   const [gridError, setGridError] = useState<string | null>(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  const [doctorSlots, setDoctorSlots] = useState<string[]>([]);
+  const [doctorSlotsLoading, setDoctorSlotsLoading] = useState(false);
+  const [doctorSlotsError, setDoctorSlotsError] = useState<string | null>(null);
+  const [doctorSlotDurationMinutes, setDoctorSlotDurationMinutes] = useState<number | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    doctor: Doctor;
+    slot: string;
+    endTime: string;
+  } | null>(null);
 
   // Step 5 – payment
   const [holdData, setHoldData] = useState<HoldResponse | null>(null);
@@ -161,21 +221,30 @@ export default function OnlineBookingPage() {
       .catch(() => {});
   }, []);
 
-  // ── Load categories when branch changes ──────────────────────────────────
+  // ── Load treatment categories (branch-agnostic) ─────────────────────────
 
   useEffect(() => {
-    if (!selectedBranchId) return;
     setLoadingCategories(true);
     setCategories([]);
-    setSelectedCategory(null);
-    fetch(`/api/public/service-categories?branchId=${selectedBranchId}`)
+    fetch("/api/public/service-categories")
       .then((r) => r.json())
       .then((data: ServiceCategory[]) => {
         if (Array.isArray(data)) setCategories(data);
       })
       .catch(() => {})
       .finally(() => setLoadingCategories(false));
-  }, [selectedBranchId]);
+  }, []);
+
+  const displayedCategories = useMemo<ServiceCategory[]>(() => {
+    if (selectedServiceType === "CONSULTATION") {
+      return CONSULTATION_CATEGORY_ORDER.map((category) => ({
+        category,
+        label: CONSULTATION_CATEGORY_LABELS[category] || category,
+        durationMinutes: 30,
+      }));
+    }
+    return categories;
+  }, [categories, selectedServiceType]);
 
   // ── Load grid when entering step 4 ───────────────────────────────────────
 
@@ -184,8 +253,12 @@ export default function OnlineBookingPage() {
     setLoadingGrid(true);
     setGridError(null);
     setGrid(null);
+    setSelectedDoctor(null);
+    setDoctorSlots([]);
+    setDoctorSlotsError(null);
+    setPendingConfirmation(null);
     try {
-      const url = `/api/public/booking-grid?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}`;
+      const url = `/api/public/booking-grid?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}&serviceType=${selectedServiceType}`;
       const res = await fetch(url);
       const data = await res.json();
       if (!res.ok) {
@@ -198,11 +271,49 @@ export default function OnlineBookingPage() {
     } finally {
       setLoadingGrid(false);
     }
-  }, [selectedBranchId, selectedCategory, selectedDate]);
+  }, [selectedBranchId, selectedCategory, selectedDate, selectedServiceType]);
+
+  const closeDoctorSlotsModal = useCallback(() => {
+    setSelectedDoctor(null);
+    setDoctorSlots([]);
+    setDoctorSlotsError(null);
+    setDoctorSlotsLoading(false);
+    setDoctorSlotDurationMinutes(null);
+    setPendingConfirmation(null);
+  }, []);
+
+  const loadDoctorAvailableSlots = useCallback(async (doctor: Doctor) => {
+    if (!selectedBranchId || !selectedCategory || !selectedDate) return;
+    setSelectedDoctor(doctor);
+    setDoctorSlotsLoading(true);
+    setDoctorSlotsError(null);
+    setDoctorSlots([]);
+    setPendingConfirmation(null);
+
+    try {
+      const url = `/api/public/doctor-available-slots?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}&doctorId=${doctor.id}&serviceType=${selectedServiceType}`;
+      const res = await fetch(url);
+      const data = (await res.json()) as DoctorAvailableSlotsResponse & { error?: string };
+      if (!res.ok) {
+        setDoctorSlotsError(data.error || "Цагийн мэдээлэл ачааллах үед алдаа гарлаа.");
+        return;
+      }
+      if (data.doctor) setSelectedDoctor(data.doctor);
+      setDoctorSlots(Array.isArray(data.availableSlots) ? data.availableSlots : []);
+      if (typeof data.durationMinutes === "number") {
+        setDoctorSlotDurationMinutes(data.durationMinutes);
+      }
+    } catch {
+      setDoctorSlotsError("Сүлжээний алдаа. Дахин оролдоно уу.");
+    } finally {
+      setDoctorSlotsLoading(false);
+    }
+  }, [selectedBranchId, selectedCategory, selectedDate, selectedServiceType]);
 
   useEffect(() => {
     if (step === 4) loadGrid();
-  }, [step, loadGrid]);
+    if (step !== 4) closeDoctorSlotsModal();
+  }, [step, loadGrid, closeDoctorSlotsModal]);
 
   // ── Payment polling ───────────────────────────────────────────────────────
 
@@ -213,7 +324,7 @@ export default function OnlineBookingPage() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
-  const startPolling = useCallback((bookingId: number, expiresAt: Date) => {
+  const startPolling = useCallback((draftIdForPolling: number, expiresAt: Date) => {
     const secondsLeft = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
     setTimeLeft(secondsLeft);
 
@@ -229,7 +340,7 @@ export default function OnlineBookingPage() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/bookings/online/${bookingId}/payment-status`);
+        const res = await fetch(`/api/public/online-booking/drafts/${draftIdForPolling}/payment-status`);
         const data = await res.json();
         if (data.status === "PAID") {
           setPaymentStatus("PAID");
@@ -260,26 +371,95 @@ export default function OnlineBookingPage() {
     return Object.keys(errors).length === 0;
   }
 
-  async function handleSlotClick(doctor: Doctor, slotTime: string) {
-    if (!selectedBranchId || !selectedCategory || !selectedDate) return;
-    const endTime = addMinutes(slotTime, selectedCategory.durationMinutes);
-    setHoldError(null);
-    setHoldLoading(true);
-    stopPolling();
+  async function updateDraft(payload: Record<string, unknown>, fallbackError: string): Promise<boolean> {
+    if (!draftId) {
+      setStartError("Draft олдсонгүй. Мэдээллийн алхмыг дахин бөглөнө үү.");
+      setStep(1);
+      return false;
+    }
+
     try {
-      const res = await fetch("/api/bookings/online/hold", {
+      const res = await fetch(`/api/public/online-booking/drafts/${draftId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStartError(data.error || fallbackError);
+        return false;
+      }
+      if (typeof data.expiresAt === "string") {
+        setDraftExpiresAt(data.expiresAt);
+      }
+      return true;
+    } catch {
+      setStartError("Сүлжээний алдаа. Дахин оролдоно уу.");
+      return false;
+    }
+  }
+
+  async function handleStep1Continue() {
+    if (!validatePersonalInfo()) return;
+
+    setStartLoading(true);
+    setStartError(null);
+    try {
+      const res = await fetch("/api/public/online-booking/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          branchId: selectedBranchId,
-          doctorId: doctor.id,
-          date: selectedDate,
-          startTime: slotTime,
-          endTime,
           ovog: info.ovog,
           name: info.name,
           phone: info.phone,
           regNo: info.regNo,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStartError(data.error || "Мэдээлэл хадгалах үед алдаа гарлаа.");
+        return;
+      }
+      setDraftId(data.draftId || null);
+      setDraftMatchStatus((data.matchStatus as DraftMatchStatus) || null);
+      setDraftExpiresAt(data.expiresAt || null);
+      setStep(2);
+    } catch {
+      setStartError("Сүлжээний алдаа. Дахин оролдоно уу.");
+    } finally {
+      setStartLoading(false);
+    }
+  }
+
+  async function handleSlotClick(doctor: Doctor, slotTime: string) {
+    if (!selectedBranchId || !selectedCategory || !selectedDate || !draftId) return;
+    const effectiveDuration = doctorSlotDurationMinutes
+      ?? grid?.durationMinutes
+      ?? selectedCategory.durationMinutes;
+    const endTime = addMinutes(slotTime, effectiveDuration);
+    setHoldError(null);
+    setStartError(null);
+    setHoldLoading(true);
+    stopPolling();
+    try {
+      const syncOk = await updateDraft(
+        {
+          serviceType: selectedServiceType,
+          serviceCategory: selectedCategory.category,
+          selectedDate,
+          selectedStartTime: slotTime,
+          selectedEndTime: endTime,
+        },
+        "Draft шинэчлэхэд алдаа гарлаа."
+      );
+      if (!syncOk) return;
+
+      const res = await fetch(`/api/public/online-booking/drafts/${draftId}/init-payment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          doctorId: doctor.id,
+          startTime: slotTime,
         }),
       });
       const data = await res.json();
@@ -289,7 +469,7 @@ export default function OnlineBookingPage() {
       }
       setHoldData(data);
       setBookingSummary({
-        doctorName: doctor.name,
+        doctorName: formatDoctorShortName(doctor.name, doctor.ovog),
         date: selectedDate,
         startTime: slotTime,
         endTime,
@@ -297,7 +477,10 @@ export default function OnlineBookingPage() {
       });
       setPaymentStatus("PENDING");
       setStep(5);
-      startPolling(data.bookingId, new Date(data.expiresAt));
+      if (typeof data.expiresAt === "string") {
+        setDraftExpiresAt(data.expiresAt);
+      }
+      startPolling(draftId, new Date(data.expiresAt));
     } catch {
       setHoldError("Сүлжээний алдаа. Дахин оролдоно уу.");
     } finally {
@@ -312,12 +495,26 @@ export default function OnlineBookingPage() {
     setBookingSummary(null);
     setPaymentStatus("PENDING");
     setGrid(null);
+    setSelectedDoctor(null);
+    setDoctorSlots([]);
+    setDoctorSlotsError(null);
+    setDoctorSlotsLoading(false);
+    setDoctorSlotDurationMinutes(null);
+    setPendingConfirmation(null);
+    setSelectedServiceType("TREATMENT");
+    setSelectedCategory(null);
+    setSelectedDate(todayStr());
+    setDraftId(null);
+    setDraftMatchStatus(null);
+    setDraftExpiresAt(null);
+    setStartError(null);
+    setStartLoading(false);
     setStep(1);
   }
 
   // ── Render helpers ───────────────────────────────────────────────────────
 
-  const progressSteps = ["Мэдээлэл", "Үйлчилгээ", "Өдөр", "Цаг", "Төлбөр"];
+  const progressSteps = ["Мэдээлэл", "Үйлчилгээ", "Салбар/Өдөр", "Цаг", "Төлбөр"];
 
   function renderProgress() {
     const activeStep = step > 5 ? 5 : step;
@@ -378,6 +575,7 @@ export default function OnlineBookingPage() {
                   onChange={(e) => {
                     setInfo((prev) => ({ ...prev, [field]: e.target.value }));
                     setInfoErrors((prev) => ({ ...prev, [field]: undefined }));
+                    setStartError(null);
                   }}
                 />
                 {infoErrors[field] && (
@@ -387,9 +585,14 @@ export default function OnlineBookingPage() {
             );
           })}
         </div>
+        {startError && (
+          <div style={{ marginTop: 12, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 10, fontSize: 13 }}>
+            {startError}
+          </div>
+        )}
         <div style={{ marginTop: 24, display: "flex", justifyContent: "flex-end" }}>
-          <button style={BTN_PRIMARY} onClick={() => { if (validatePersonalInfo()) setStep(2); }}>
-            Үргэлжлүүлэх →
+          <button style={{ ...BTN_PRIMARY, opacity: startLoading ? 0.7 : 1 }} onClick={handleStep1Continue} disabled={startLoading}>
+            {startLoading ? "Шалгаж байна..." : "Үргэлжлүүлэх →"}
           </button>
         </div>
       </div>
@@ -399,35 +602,79 @@ export default function OnlineBookingPage() {
   function renderStep2() {
     return (
       <div>
-        <h2 style={{ fontSize: 18, marginBottom: 4 }}>Салбар болон үйлчилгээ сонгох</h2>
+        <h2 style={{ fontSize: 18, marginBottom: 4 }}>Үйлчилгээ сонгох</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
-          Та аль салбарт, ямар үйлчилгээ авахыг сонгоно уу.
+          Үйлчилгээний төрөл болон ангиллаа сонгоно уу.
         </p>
+        {draftMatchStatus === "EXISTING" && (
+          <div style={{ marginBottom: 12, borderRadius: 8, border: "1px solid #fcd34d", background: "#fffbeb", padding: "10px 12px", color: "#92400e", fontSize: 12 }}>
+            РД системд бүртгэлтэй тул одоо байгаа үйлчлүүлэгчтэй холбохоор тэмдэглэв.
+          </div>
+        )}
+        {draftMatchStatus === "DUPLICATE_NEEDS_REVIEW" && (
+          <div style={{ marginBottom: 12, borderRadius: 8, border: "1px solid #fca5a5", background: "#fef2f2", padding: "10px 12px", color: "#991b1b", fontSize: 12 }}>
+            Ижил РД-тэй олон бүртгэл илэрсэн тул reception шалгалт шаардлагатай.
+          </div>
+        )}
+        {draftId && draftExpiresAt && (
+          <p style={{ color: "#9ca3af", fontSize: 11, marginBottom: 12 }}>
+            Draft #{draftId} · хүчинтэй хугацаа: {new Date(draftExpiresAt).toLocaleTimeString()}
+          </p>
+        )}
+        {startError && (
+          <div style={{ marginBottom: 12, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 10, fontSize: 13 }}>
+            {startError}
+          </div>
+        )}
         <div style={{ marginBottom: 18 }}>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-            Салбар
+            Үйлчилгээний төрөл *
           </label>
-          <select
-            style={{ ...INPUT_STYLE, background: "#fff" }}
-            value={selectedBranchId ?? ""}
-            onChange={(e) => setSelectedBranchId(Number(e.target.value))}
-          >
-            {branches.map((b) => (
-              <option key={b.id} value={b.id}>{b.name}</option>
-            ))}
-          </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            {[
+              { value: "CONSULTATION", label: "Зөвлөгөө" },
+              { value: "TREATMENT", label: "Эмчилгээ" },
+            ].map((opt) => {
+              const selected = selectedServiceType === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => {
+                    setSelectedServiceType(opt.value as OnlineBookingServiceType);
+                    setSelectedCategory(null);
+                    setStartError(null);
+                  }}
+                  style={{
+                    textAlign: "center",
+                    padding: "10px 12px",
+                    border: `2px solid ${selected ? "#f97316" : "#e5e7eb"}`,
+                    borderRadius: 10,
+                    background: selected ? "#fff7ed" : "#fff",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                    color: selected ? "#ea580c" : "#374151",
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 8 }}>
-            Үйлчилгээний төрөл *
+            Үйлчилгээний ангилал *
           </label>
-          {loadingCategories && <p style={{ color: "#6b7280", fontSize: 13 }}>Ачааллаж байна...</p>}
-          {!loadingCategories && categories.length === 0 && (
-            <p style={{ color: "#6b7280", fontSize: 13 }}>Энэ салбарт үйлчилгээ байхгүй байна.</p>
+          {loadingCategories && selectedServiceType === "TREATMENT" && (
+            <p style={{ color: "#6b7280", fontSize: 13 }}>Ачааллаж байна...</p>
+          )}
+          {!loadingCategories && displayedCategories.length === 0 && (
+            <p style={{ color: "#6b7280", fontSize: 13 }}>Онлайн захиалгад тохирох үйлчилгээ олдсонгүй.</p>
           )}
           <div style={{ display: "grid", gap: 10 }}>
-            {categories.map((cat) => {
+            {displayedCategories.map((cat) => {
               const selected = selectedCategory?.category === cat.category;
               return (
                 <button
@@ -461,7 +708,19 @@ export default function OnlineBookingPage() {
           <button
             style={{ ...BTN_PRIMARY, opacity: selectedCategory ? 1 : 0.5 }}
             disabled={!selectedCategory}
-            onClick={() => { if (selectedCategory) setStep(3); }}
+            onClick={async () => {
+              if (!selectedCategory) return;
+              setStartError(null);
+              const ok = await updateDraft(
+                {
+                  serviceType: selectedServiceType,
+                  serviceCategory: selectedCategory.category,
+                },
+                "Үйлчилгээний мэдээлэл хадгалах үед алдаа гарлаа."
+              );
+              if (!ok) return;
+              setStep(3);
+            }}
           >
             Үргэлжлүүлэх →
           </button>
@@ -473,20 +732,61 @@ export default function OnlineBookingPage() {
   function renderStep3() {
     return (
       <div>
-        <h2 style={{ fontSize: 18, marginBottom: 4 }}>Өдөр сонгох</h2>
+        <h2 style={{ fontSize: 18, marginBottom: 4 }}>Салбар болон өдөр сонгох</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
-          Цаг авах өдрөө сонгоно уу.
+          Эмчийн боломжит цаг харахын тулд салбар болон өдрөө сонгоно уу.
         </p>
+        <div style={{ marginBottom: 14 }}>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+            Салбар *
+          </label>
+          <select
+            style={{ ...INPUT_STYLE, background: "#fff" }}
+            value={selectedBranchId ?? ""}
+            onChange={(e) => setSelectedBranchId(Number(e.target.value))}
+          >
+            <option value="" disabled>Салбар сонгоно уу</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
         <input
           type="date"
           style={INPUT_STYLE}
           value={selectedDate}
           min={todayStr()}
-          onChange={(e) => setSelectedDate(e.target.value)}
+          onChange={(e) => {
+            setSelectedDate(e.target.value);
+            setStartError(null);
+          }}
         />
+        {startError && (
+          <div style={{ marginTop: 12, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 10, fontSize: 13 }}>
+            {startError}
+          </div>
+        )}
         <div style={{ marginTop: 24, display: "flex", justifyContent: "space-between" }}>
           <button style={BTN_GHOST} onClick={() => setStep(2)}>← Буцах</button>
-          <button style={BTN_PRIMARY} disabled={!selectedDate} onClick={() => setStep(4)}>
+          <button
+            style={BTN_PRIMARY}
+            disabled={!selectedDate || !selectedBranchId}
+            onClick={async () => {
+              if (!selectedDate || !selectedBranchId) return;
+              setStartError(null);
+              const ok = await updateDraft(
+                {
+                  branchId: selectedBranchId,
+                  selectedDate,
+                  selectedStartTime: null,
+                  selectedEndTime: null,
+                },
+                "Салбар, өдрийн мэдээлэл хадгалах үед алдаа гарлаа."
+              );
+              if (!ok) return;
+              setStep(4);
+            }}
+          >
             Цагийн хуваарь харах →
           </button>
         </div>
@@ -499,10 +799,10 @@ export default function OnlineBookingPage() {
       <div>
         <h2 style={{ fontSize: 18, marginBottom: 4 }}>Цаг сонгох</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 4 }}>
-          {selectedCategory?.label} · {selectedDate} · {selectedCategory?.durationMinutes} минут
+          {selectedCategory?.label} · {selectedDate} · {grid?.durationMinutes ?? selectedCategory?.durationMinutes} минут
         </p>
         <p style={{ color: "#6b7280", fontSize: 12, marginBottom: 16 }}>
-          Боломжтой цаг дээр дарж захиална уу. "Захиалгатай" гэсэн цаг захиалах боломжгүй.
+          Эмчээ сонгоод гарч ирэх цонхоноос зөвхөн боломжтой цагуудаас сонгон захиална уу.
         </p>
 
         {loadingGrid && <p style={{ color: "#6b7280" }}>Ачааллаж байна...</p>}
@@ -521,76 +821,34 @@ export default function OnlineBookingPage() {
         )}
 
         {grid && !loadingGrid && grid.doctors.length > 0 && (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ borderCollapse: "collapse", minWidth: 400, width: "100%", fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  <th style={{ padding: "8px 10px", border: "1px solid #e5e7eb", textAlign: "left", width: 64, minWidth: 56 }}>Цаг</th>
-                  {grid.doctors.map((doc) => (
-                    <th key={doc.id} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", textAlign: "center" }}>
-                      <div style={{ fontWeight: 600 }}>{doc.name}</div>
-                      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 400 }}>
-                        {doc.scheduleStart}–{doc.scheduleEnd}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {grid.slots.map((slot) => (
-                  <tr key={slot}>
-                    <td style={{ padding: "6px 10px", border: "1px solid #e5e7eb", color: "#374151", fontWeight: 500 }}>
-                      {slot}
-                    </td>
-                    {grid.doctors.map((doc) => {
-                      const slotMin = Number(slot.split(":")[0]) * 60 + Number(slot.split(":")[1]);
-                      const startMin = Number(doc.scheduleStart.split(":")[0]) * 60 + Number(doc.scheduleStart.split(":")[1]);
-                      const endMin = Number(doc.scheduleEnd.split(":")[0]) * 60 + Number(doc.scheduleEnd.split(":")[1]);
-                      const inSchedule = slotMin >= startMin && slotMin < endMin;
-
-                      if (!inSchedule) {
-                        return (
-                          <td key={doc.id} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", background: "#f3f4f6" }} />
-                        );
-                      }
-
-                      const isBusy = grid.busy.includes(`${doc.id}:${slot}`);
-                      if (isBusy) {
-                        return (
-                          <td key={doc.id} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", textAlign: "center" }}>
-                            <span style={{ background: "#fee2e2", color: "#991b1b", borderRadius: 6, padding: "3px 8px", fontSize: 12 }}>
-                              Захиалгатай
-                            </span>
-                          </td>
-                        );
-                      }
-
-                      return (
-                        <td key={doc.id} style={{ padding: "4px 6px", border: "1px solid #e5e7eb", textAlign: "center" }}>
-                          <button
-                            type="button"
-                            disabled={holdLoading}
-                            onClick={() => handleSlotClick(doc, slot)}
-                            style={{
-                              background: "#f0fdf4",
-                              color: "#15803d",
-                              border: "1px solid #86efac",
-                              borderRadius: 6,
-                              padding: "4px 10px",
-                              fontSize: 12,
-                              cursor: holdLoading ? "not-allowed" : "pointer",
-                              fontWeight: 500,
-                            }}
-                          >
-                            Захиалах
-                          </button>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: "grid", gap: 10 }}>
+            {grid.doctors.map((doc) => {
+              const isSelectedDoctor = selectedDoctor?.id === doc.id;
+              return (
+                <button
+                  key={doc.id}
+                  type="button"
+                  onClick={() => {
+                    void loadDoctorAvailableSlots(doc);
+                  }}
+                  style={{
+                    textAlign: "left",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: `2px solid ${isSelectedDoctor ? "#f97316" : "#e5e7eb"}`,
+                    background: isSelectedDoctor ? "#fff7ed" : "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 15, color: isSelectedDoctor ? "#ea580c" : "#111827" }}>
+                    {formatDoctorShortName(doc.name, doc.ovog)}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                    {doc.scheduleStart}–{doc.scheduleEnd}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -598,6 +856,113 @@ export default function OnlineBookingPage() {
           <button style={BTN_GHOST} onClick={() => { setHoldError(null); setStep(3); }}>← Буцах</button>
           <button style={BTN_GHOST} onClick={loadGrid}>🔄 Шинэчлэх</button>
         </div>
+
+        {selectedDoctor && (
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(17, 24, 39, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: 12,
+          }}>
+            <div style={{ background: "#fff", width: "min(560px, 100%)", maxHeight: "85vh", overflowY: "auto", borderRadius: 14, padding: 16 }}>
+              <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 17 }}>Эмч: {formatDoctorShortName(selectedDoctor.name, selectedDoctor.ovog)}</h3>
+                  <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 12 }}>
+                    Ажиллах цаг: {selectedDoctor.scheduleStart}–{selectedDoctor.scheduleEnd}
+                  </p>
+                </div>
+                <button type="button" onClick={closeDoctorSlotsModal} style={BTN_GHOST}>✕</button>
+              </div>
+
+              {doctorSlotsLoading && <p style={{ color: "#6b7280", fontSize: 13 }}>Сул цаг ачааллаж байна...</p>}
+              {doctorSlotsError && <p style={{ color: "#b91c1c", fontSize: 13 }}>{doctorSlotsError}</p>}
+              {!doctorSlotsLoading && !doctorSlotsError && doctorSlots.length === 0 && (
+                <p style={{ color: "#6b7280", fontSize: 13 }}>Энэ эмчид сонгосон өдөр сул цаг алга.</p>
+              )}
+              {!doctorSlotsLoading && !doctorSlotsError && doctorSlots.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gap: 8 }}>
+                  {doctorSlots.map((slot) => (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={holdLoading}
+                      onClick={() => {
+                        const effectiveDuration = doctorSlotDurationMinutes
+                          ?? grid?.durationMinutes
+                          ?? selectedCategory?.durationMinutes
+                          ?? 30;
+                        setPendingConfirmation({
+                          doctor: selectedDoctor,
+                          slot,
+                          endTime: addMinutes(slot, effectiveDuration),
+                        });
+                      }}
+                      style={{
+                        border: "1px solid #86efac",
+                        borderRadius: 8,
+                        background: "#f0fdf4",
+                        color: "#166534",
+                        padding: "8px 6px",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: holdLoading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {pendingConfirmation && (
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(17, 24, 39, 0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+            padding: 12,
+          }}>
+            <div style={{ background: "#fff", width: "min(420px, 100%)", borderRadius: 14, padding: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 17, marginBottom: 10 }}>Цаг баталгаажуулах уу?</h3>
+              <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.7 }}>
+                <div><b>Эмч:</b> {formatDoctorShortName(pendingConfirmation.doctor.name, pendingConfirmation.doctor.ovog)}</div>
+                <div><b>Үйлчилгээ:</b> {selectedCategory?.label}</div>
+                <div><b>Өдөр:</b> {selectedDate}</div>
+                <div><b>Цаг:</b> {pendingConfirmation.slot}–{pendingConfirmation.endTime}</div>
+              </div>
+              <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button type="button" style={BTN_GHOST} onClick={() => setPendingConfirmation(null)}>
+                  Болих
+                </button>
+                <button
+                  type="button"
+                  style={BTN_PRIMARY}
+                  disabled={holdLoading}
+                  onClick={() => {
+                    const decision = pendingConfirmation;
+                    setPendingConfirmation(null);
+                    if (!decision) return;
+                    closeDoctorSlotsModal();
+                    void handleSlotClick(decision.doctor, decision.slot);
+                  }}
+                >
+                  Баталгаажуулах
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -606,11 +971,13 @@ export default function OnlineBookingPage() {
     if (!holdData || !bookingSummary) return null;
     const mins = Math.floor(timeLeft / 60);
     const secs = timeLeft % 60;
+    const depositAmount = holdData.depositAmount ?? 30_000;
+    const depositAmountLabel = `${depositAmount.toLocaleString("en-US")}₮`;
     return (
       <div>
         <h2 style={{ fontSize: 18, marginBottom: 4 }}>Урьдчилгаа төлбөр</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
-          Цагийг баталгаажуулахын тулд 10 минутын дотор <strong>30,000₮</strong> урьдчилгаа төлбөр төлнө үү.
+          Цагийг баталгаажуулахын тулд 10 минутын дотор <strong>{depositAmountLabel}</strong> урьдчилгаа төлбөр төлнө үү.
         </p>
 
         <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 13 }}>

@@ -65,6 +65,25 @@ enum BookingStatus {
   ONLINE_EXPIRED
 }
 
+enum OnlineBookingDraftStatus {
+  PENDING_PAYMENT
+  VERIFIED
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+enum OnlineBookingMatchStatus {
+  NEW
+  EXISTING
+  DUPLICATE_NEEDS_REVIEW
+}
+
+enum OnlineBookingServiceType {
+  CONSULTATION
+  TREATMENT
+}
+
 // NEW: discount levels explicitly constrained
 enum DiscountPercent {
   ZERO // 0%
@@ -176,6 +195,7 @@ model Branch {
   doctorBranches     DoctorBranch[]
   appointments       Appointment[]
   bookings           Booking[]
+  onlineBookingDrafts OnlineBookingDraft[]
   receptionSchedules ReceptionSchedule[]
   receptionBranches  ReceptionBranch[]
   nurseSchedules     NurseSchedule[]
@@ -758,6 +778,7 @@ model User {
 
   doctorSchedules DoctorSchedule[]
   doctorBranches  DoctorBranch[]
+  doctorServiceCategories DoctorServiceCategory[]
 
   receptionSchedules ReceptionSchedule[]
   receptionBranches ReceptionBranch[]
@@ -941,6 +962,7 @@ model Patient {
   patientBook  PatientBook?
   appointments Appointment[]
   bookings     Booking[]
+  onlineBookingDrafts OnlineBookingDraft[] @relation("MatchedPatientOnlineBookingDrafts")
 
   // NEW: invoices that reference this patient (from Invoice.patient)
   invoices Invoice[]
@@ -1077,6 +1099,7 @@ model Booking {
   patient Patient @relation(fields: [patientId], references: [id])
 
   deposit BookingDeposit?
+  onlineBookingDraft OnlineBookingDraft?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1105,6 +1128,45 @@ model BookingDeposit {
   updatedAt DateTime @updatedAt
 
   @@index([branchId])
+}
+
+model OnlineBookingDraft {
+  id               Int                      @id @default(autoincrement())
+  branchId         Int?
+  branch           Branch?                  @relation(fields: [branchId], references: [id])
+  matchedPatientId Int?
+  matchedPatient   Patient?                 @relation("MatchedPatientOnlineBookingDrafts", fields: [matchedPatientId], references: [id])
+  bookingId        Int?                     @unique
+  booking          Booking?                 @relation(fields: [bookingId], references: [id])
+
+  status           OnlineBookingDraftStatus @default(PENDING_PAYMENT)
+  matchStatus      OnlineBookingMatchStatus @default(NEW)
+  serviceType      OnlineBookingServiceType?
+
+  ovog             String
+  name             String
+  phone            String
+  regNoRaw         String
+  regNoNormalized  String
+  note             String?                  @db.Text
+
+  // Filled in later steps of the online booking flow.
+  serviceCategory  ServiceCategory?
+  selectedDate     DateTime?
+  selectedStartTime String?
+  selectedEndTime  String?
+
+  expiresAt        DateTime
+  ipAddress        String?
+  userAgent        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([branchId, createdAt])
+  @@index([matchedPatientId])
+  @@index([status, expiresAt])
+  @@index([regNoNormalized])
 }
 
 // ==========================================================
@@ -1780,6 +1842,20 @@ model DoctorBranch {
   branch Branch @relation(fields: [branchId], references: [id])
 
   @@unique([doctorId, branchId])
+}
+
+model DoctorServiceCategory {
+  id       Int             @id @default(autoincrement())
+  doctorId Int
+  category ServiceCategory
+  isActive Boolean         @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  doctor User @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, category])
+  @@index([category, isActive])
 }
 
 model ReceptionBranch {
