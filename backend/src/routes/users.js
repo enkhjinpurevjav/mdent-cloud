@@ -5,6 +5,15 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 const router = Router();
+const BOOKABLE_SERVICE_CATEGORIES = [
+  "ORTHODONTIC_TREATMENT",
+  "IMAGING",
+  "DEFECT_CORRECTION",
+  "ADULT_TREATMENT",
+  "WHITENING",
+  "CHILD_TREATMENT",
+  "SURGERY",
+];
 
 /**
  * Helper: ensure a user exists and is a doctor, or send 404.
@@ -1068,6 +1077,11 @@ router.get("/:id", async (req, res) => {
         doctorBranches: {
           include: { branch: true },
         },
+        doctorServiceCategories: {
+          where: { isActive: true },
+          select: { category: true },
+          orderBy: { category: "asc" },
+        },
       },
     });
 
@@ -1100,6 +1114,7 @@ router.get("/:id", async (req, res) => {
           id: db.branch.id,
           name: db.branch.name,
         })) ?? [],
+      serviceCategories: user.doctorServiceCategories?.map((x) => x.category) ?? [],
     });
   } catch (err) {
     console.error("GET /api/users/:id error:", err);
@@ -1175,6 +1190,11 @@ router.put("/:id", async (req, res) => {
         doctorBranches: {
           include: { branch: true },
         },
+        doctorServiceCategories: {
+          where: { isActive: true },
+          select: { category: true },
+          orderBy: { category: "asc" },
+        },
       },
     });
 
@@ -1204,6 +1224,7 @@ router.put("/:id", async (req, res) => {
           id: db.branch.id,
           name: db.branch.name,
         })) ?? [],
+      serviceCategories: updated.doctorServiceCategories?.map((x) => x.category) ?? [],
     });
   } catch (err) {
     console.error("PUT /api/users/:id error:", err);
@@ -1352,6 +1373,93 @@ router.put("/:id/branches", async (req, res) => {
     });
   } catch (err) {
     console.error("PUT /api/users/:id/branches error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * GET /api/users/:id/service-categories
+ * Returns the enabled service categories for a doctor.
+ */
+router.get("/:id/service-categories", async (req, res) => {
+  const doctorId = Number(req.params.id);
+  if (!doctorId || Number.isNaN(doctorId)) {
+    return res.status(400).json({ error: "Invalid doctor id" });
+  }
+
+  try {
+    const doctor = await ensureDoctorOr404(doctorId, res);
+    if (!doctor) return;
+
+    const rows = await prisma.doctorServiceCategory.findMany({
+      where: { doctorId, isActive: true },
+      select: { category: true },
+      orderBy: { category: "asc" },
+    });
+
+    return res.json({
+      doctorId,
+      categories: rows.map((r) => r.category),
+      allCategories: BOOKABLE_SERVICE_CATEGORIES,
+    });
+  } catch (err) {
+    console.error("GET /api/users/:id/service-categories error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+/**
+ * PUT /api/users/:id/service-categories
+ * Replaces the enabled service categories for a doctor.
+ * Body: { categories: ServiceCategory[] }
+ */
+router.put("/:id/service-categories", async (req, res) => {
+  const doctorId = Number(req.params.id);
+  if (!doctorId || Number.isNaN(doctorId)) {
+    return res.status(400).json({ error: "Invalid doctor id" });
+  }
+
+  const { categories } = req.body || {};
+  if (!Array.isArray(categories)) {
+    return res.status(400).json({ error: "categories must be an array" });
+  }
+
+  const normalized = [...new Set(categories.map((c) => String(c).trim()).filter(Boolean))];
+  const invalid = normalized.filter((c) => !BOOKABLE_SERVICE_CATEGORIES.includes(c));
+  if (invalid.length > 0) {
+    return res.status(400).json({
+      error: `Invalid categories: ${invalid.join(", ")}`,
+    });
+  }
+
+  try {
+    const doctor = await ensureDoctorOr404(doctorId, res);
+    if (!doctor) return;
+
+    await prisma.$transaction([
+      prisma.doctorServiceCategory.deleteMany({
+        where: { doctorId },
+      }),
+      ...(normalized.length > 0
+        ? [
+            prisma.doctorServiceCategory.createMany({
+              data: normalized.map((category) => ({
+                doctorId,
+                category,
+                isActive: true,
+              })),
+            }),
+          ]
+        : []),
+    ]);
+
+    return res.json({
+      doctorId,
+      categories: normalized,
+      allCategories: BOOKABLE_SERVICE_CATEGORIES,
+    });
+  } catch (err) {
+    console.error("PUT /api/users/:id/service-categories error:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
 });

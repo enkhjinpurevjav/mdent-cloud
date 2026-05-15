@@ -12,6 +12,15 @@ const prisma = new PrismaClient();
 const router = Router();
 const ONLINE_BOOKING_DRAFT_HOLD_MINUTES = 10;
 const DEPOSIT_AMOUNT = 30_000; // MNT
+const BOOKABLE_SERVICE_CATEGORIES = [
+  "ORTHODONTIC_TREATMENT",
+  "IMAGING",
+  "DEFECT_CORRECTION",
+  "ADULT_TREATMENT",
+  "WHITENING",
+  "CHILD_TREATMENT",
+  "SURGERY",
+];
 
 const onlineBookingStartLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -186,6 +195,9 @@ router.get("/booking-grid", async (req, res) => {
     if (Number.isNaN(bid)) {
       return res.status(400).json({ error: "Invalid branchId" });
     }
+    if (!BOOKABLE_SERVICE_CATEGORIES.includes(String(category))) {
+      return res.status(400).json({ error: "Invalid category" });
+    }
 
     const day = parseDateOrNull(date);
     if (!day) {
@@ -199,9 +211,21 @@ router.get("/booking-grid", async (req, res) => {
     });
     const durationMinutes = categoryConfig?.durationMinutes ?? 30;
 
-    // Get eligible doctors: doctors with a schedule at this branch+date
+    const capableRows = await prisma.doctorServiceCategory.findMany({
+      where: {
+        category: String(category),
+        isActive: true,
+      },
+      select: { doctorId: true },
+    });
+    const capableDoctorIds = capableRows.map((r) => r.doctorId);
+    if (capableDoctorIds.length === 0) {
+      return res.json({ doctors: [], slots: [], busy: [], durationMinutes });
+    }
+
+    // Get eligible doctors: doctors with both capability and schedule at this branch+date
     const schedules = await prisma.doctorSchedule.findMany({
-      where: { branchId: bid, date: day },
+      where: { branchId: bid, date: day, doctorId: { in: capableDoctorIds } },
       select: {
         startTime: true,
         endTime: true,
@@ -432,6 +456,9 @@ router.patch("/online-booking/drafts/:draftId", async (req, res) => {
 
     const data = {};
     if (serviceCategory !== undefined) {
+      if (!BOOKABLE_SERVICE_CATEGORIES.includes(String(serviceCategory))) {
+        return res.status(400).json({ error: "Invalid serviceCategory" });
+      }
       const categoryConfig = await prisma.serviceCategoryConfig.findUnique({
         where: { category: serviceCategory },
         select: { category: true },
@@ -548,6 +575,17 @@ router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => 
     });
     if (!doctor || doctor.role !== UserRole.doctor) {
       return res.status(400).json({ error: "Invalid doctor" });
+    }
+    const canPerformCategory = await prisma.doctorServiceCategory.findFirst({
+      where: {
+        doctorId: did,
+        category: draft.serviceCategory,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!canPerformCategory) {
+      return res.status(400).json({ error: "Doctor cannot perform selected treatment category" });
     }
 
     const schedule = await prisma.doctorSchedule.findFirst({

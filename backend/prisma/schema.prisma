@@ -773,6 +773,7 @@ model User {
 
   doctorSchedules DoctorSchedule[]
   doctorBranches  DoctorBranch[]
+  doctorServiceCategories DoctorServiceCategory[]
 
   receptionSchedules ReceptionSchedule[]
   receptionBranches ReceptionBranch[]
@@ -1835,6 +1836,20 @@ model DoctorBranch {
   branch Branch @relation(fields: [branchId], references: [id])
 
   @@unique([doctorId, branchId])
+}
+
+model DoctorServiceCategory {
+  id       Int             @id @default(autoincrement())
+  doctorId Int
+  category ServiceCategory
+  isActive Boolean         @default(true)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  doctor User @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, category])
+  @@index([category, isActive])
 }
 
 model ReceptionBranch {
