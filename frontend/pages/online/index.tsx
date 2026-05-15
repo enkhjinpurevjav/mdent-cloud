@@ -36,6 +36,7 @@ type DoctorAvailableSlotsResponse = {
 
 type HoldResponse = {
   bookingId: number;
+  depositAmount?: number;
   expiresAt: string;
   qpayInvoiceId: string;
   qrText: string;
@@ -960,11 +961,13 @@ export default function OnlineBookingPage() {
     if (!holdData || !bookingSummary) return null;
     const mins = Math.floor(timeLeft / 60);
     const secs = timeLeft % 60;
+    const depositAmount = holdData.depositAmount ?? 30_000;
+    const depositAmountLabel = `${depositAmount.toLocaleString("en-US")}₮`;
     return (
       <div>
         <h2 style={{ fontSize: 18, marginBottom: 4 }}>Урьдчилгаа төлбөр</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 16 }}>
-          Цагийг баталгаажуулахын тулд 10 минутын дотор <strong>30,000₮</strong> урьдчилгаа төлбөр төлнө үү.
+          Цагийг баталгаажуулахын тулд 10 минутын дотор <strong>{depositAmountLabel}</strong> урьдчилгаа төлбөр төлнө үү.
         </p>
 
         <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "12px 16px", marginBottom: 16, fontSize: 13 }}>

@@ -3,11 +3,12 @@ import { Router } from "express";
 import { PrismaClient, BookingStatus, UserRole } from "@prisma/client";
 import crypto from "crypto";
 import * as qpayService from "../services/qpayService.js";
+import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
 
 const prisma = new PrismaClient();
 const router = Router();
 
-const DEPOSIT_AMOUNT = 30_000; // MNT
+const ONLINE_BOOKING_DEPOSIT_AMOUNT = getOnlineBookingDepositAmount();
 const HOLD_MINUTES = 10;
 
 const ONLINE_STATUSES = [
@@ -261,7 +262,7 @@ router.post("/online/hold", async (req, res) => {
 
     // Build note
     const noteLines = [
-      "[ONLINE BOOKING - DEPOSIT 30000₮]",
+      `[ONLINE BOOKING - DEPOSIT ${ONLINE_BOOKING_DEPOSIT_AMOUNT}₮]`,
       `Овог: ${ovog || ""}`,
       `Нэр: ${name || ""}`,
       `Утас: ${phone || ""}`,
@@ -296,7 +297,7 @@ router.post("/online/hold", async (req, res) => {
     try {
       qpayResponse = await qpayService.createInvoice({
         sender_invoice_no: senderInvoiceNo,
-        amount: DEPOSIT_AMOUNT,
+        amount: ONLINE_BOOKING_DEPOSIT_AMOUNT,
         description,
         callback_url: callbackUrl,
         branchId: bid,
@@ -315,7 +316,7 @@ router.post("/online/hold", async (req, res) => {
       data: {
         bookingId: booking.id,
         branchId: bid,
-        amount: DEPOSIT_AMOUNT,
+        amount: ONLINE_BOOKING_DEPOSIT_AMOUNT,
         status: "NEW",
         holdExpiresAt,
         qpayInvoiceId: qpayResponse.invoice_id,
@@ -326,6 +327,7 @@ router.post("/online/hold", async (req, res) => {
 
     return res.status(201).json({
       bookingId: booking.id,
+      depositAmount: ONLINE_BOOKING_DEPOSIT_AMOUNT,
       expiresAt: holdExpiresAt.toISOString(),
       qpayInvoiceId: qpayResponse.invoice_id,
       qrText: qpayResponse.qr_text,
@@ -377,7 +379,7 @@ router.get("/online/:bookingId/payment-status", async (req, res) => {
       return res.status(502).json({ error: "Payment check failed: " + checkErr.message });
     }
 
-    if (checkResult.paid && checkResult.paidAmount >= DEPOSIT_AMOUNT) {
+    if (checkResult.paid && checkResult.paidAmount >= ONLINE_BOOKING_DEPOSIT_AMOUNT) {
       // Confirm payment
       await prisma.$transaction([
         prisma.bookingDeposit.update({
