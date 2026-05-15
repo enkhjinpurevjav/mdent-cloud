@@ -4,6 +4,7 @@ import * as qpayService from "../services/qpayService.js";
 import { BookingStatus } from "@prisma/client";
 import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
 import { ensureOnlineAppointmentForBooking } from "../services/onlineBookingAppointmentSync.js";
+import { ensureOnlineBookingPatientForPayment } from "../services/onlineBookingPatientSync.js";
 
 const router = express.Router();
 
@@ -196,6 +197,7 @@ async function handleBookingCallback(bookingId, token) {
           where: { id: bid },
           data: { status: BookingStatus.ONLINE_CONFIRMED },
         });
+        await ensureOnlineBookingPatientForPayment(tx, bid);
         await ensureOnlineAppointmentForBooking(tx, bid);
       });
       return;
@@ -223,6 +225,7 @@ async function handleBookingCallback(bookingId, token) {
           where: { id: bid },
           data: { status: BookingStatus.ONLINE_CONFIRMED },
         });
+        await ensureOnlineBookingPatientForPayment(tx, bid);
         await ensureOnlineAppointmentForBooking(tx, bid);
       });
       console.log(`QPay booking callback: bookingId=${bid} confirmed`);
