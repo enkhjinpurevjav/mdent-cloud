@@ -9,6 +9,7 @@ import { normalizeRegNo, parseRegNo } from "../utils/regno.js";
 import * as qpayService from "../services/qpayService.js";
 import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
 import { ensureOnlineAppointmentForBooking } from "../services/onlineBookingAppointmentSync.js";
+import { ensureOnlineBookingPatientForPayment } from "../services/onlineBookingPatientSync.js";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -263,7 +264,7 @@ router.get("/booking-grid", async (req, res) => {
       select: {
         startTime: true,
         endTime: true,
-        doctor: { select: { id: true, name: true } },
+        doctor: { select: { id: true, name: true, ovog: true } },
       },
     });
 
@@ -277,6 +278,7 @@ router.get("/booking-grid", async (req, res) => {
       doctorMap.set(sch.doctor.id, {
         id: sch.doctor.id,
         name: sch.doctor.name || `Эмч #${sch.doctor.id}`,
+        ovog: sch.doctor.ovog || null,
         scheduleStart: sch.startTime,
         scheduleEnd: sch.endTime,
       });
@@ -353,7 +355,7 @@ router.get("/doctor-available-slots", async (req, res) => {
       select: {
         startTime: true,
         endTime: true,
-        doctor: { select: { id: true, name: true } },
+        doctor: { select: { id: true, name: true, ovog: true } },
       },
     });
     if (!schedule) {
@@ -386,6 +388,7 @@ router.get("/doctor-available-slots", async (req, res) => {
       doctor: {
         id: schedule.doctor.id,
         name: schedule.doctor.name || `Эмч #${did}`,
+        ovog: schedule.doctor.ovog || null,
         scheduleStart: schedule.startTime,
         scheduleEnd: schedule.endTime,
       },
@@ -905,11 +908,12 @@ router.get("/online-booking/drafts/:draftId/payment-status", async (req, res) =>
           where: { id: bookingId },
           data: { status: BookingStatus.ONLINE_CONFIRMED },
         });
+        await ensureOnlineBookingPatientForPayment(tx, bookingId, { draftId: draft.id });
         if (draft.status !== "PAID") {
           await tx.onlineBookingDraft.update({
             where: { id: draft.id },
             data: { status: "PAID" },
-          }).catch(() => {});
+          });
         }
         await ensureOnlineAppointmentForBooking(tx, bookingId);
       });
@@ -952,6 +956,7 @@ router.get("/online-booking/drafts/:draftId/payment-status", async (req, res) =>
           where: { id: bookingId },
           data: { status: BookingStatus.ONLINE_CONFIRMED },
         });
+        await ensureOnlineBookingPatientForPayment(tx, bookingId, { draftId: draft.id });
         await tx.onlineBookingDraft.update({
           where: { id: draft.id },
           data: { status: "PAID" },

@@ -5,6 +5,7 @@ import crypto from "crypto";
 import * as qpayService from "../services/qpayService.js";
 import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
 import { ensureOnlineAppointmentForBooking } from "../services/onlineBookingAppointmentSync.js";
+import { ensureOnlineBookingPatientForPayment } from "../services/onlineBookingPatientSync.js";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -367,6 +368,7 @@ router.get("/online/:bookingId/payment-status", async (req, res) => {
           where: { id: bookingId },
           data: { status: BookingStatus.ONLINE_CONFIRMED },
         });
+        await ensureOnlineBookingPatientForPayment(tx, bookingId);
         await ensureOnlineAppointmentForBooking(tx, bookingId);
       });
       return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });
@@ -404,6 +406,7 @@ router.get("/online/:bookingId/payment-status", async (req, res) => {
           where: { id: bookingId },
           data: { status: BookingStatus.ONLINE_CONFIRMED },
         });
+        await ensureOnlineBookingPatientForPayment(tx, bookingId);
         await ensureOnlineAppointmentForBooking(tx, bookingId);
       });
       return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });

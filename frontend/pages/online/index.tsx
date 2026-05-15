@@ -17,6 +17,7 @@ type OnlineBookingServiceType = "CONSULTATION" | "TREATMENT";
 type Doctor = {
   id: number;
   name: string;
+  ovog?: string | null;
   scheduleStart: string;
   scheduleEnd: string;
 };
@@ -83,14 +84,23 @@ function todayStr(): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
-function formatDoctorShortName(fullName: string): string {
-  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    const firstInitial = parts[0].charAt(0).toUpperCase();
-    const lastName = parts[parts.length - 1];
+function formatDoctorShortName(fullName: string, ovog?: string | null): string {
+  const cleanName = String(fullName || "").trim();
+  const nameParts = cleanName.split(/\s+/).filter(Boolean);
+  const displayName = nameParts.length > 0 ? nameParts[nameParts.length - 1] : cleanName;
+
+  const cleanOvog = String(ovog || "").trim();
+  if (cleanOvog && displayName) {
+    return `${cleanOvog.charAt(0).toUpperCase()}.${displayName}`;
+  }
+
+  if (nameParts.length >= 2) {
+    const firstInitial = nameParts[0].charAt(0).toUpperCase();
+    const lastName = nameParts[nameParts.length - 1];
     return `${firstInitial}.${lastName}`;
   }
-  return fullName || "";
+
+  return cleanName;
 }
 
 const INPUT_STYLE: React.CSSProperties = {
@@ -459,7 +469,7 @@ export default function OnlineBookingPage() {
       }
       setHoldData(data);
       setBookingSummary({
-        doctorName: doctor.name,
+        doctorName: formatDoctorShortName(doctor.name, doctor.ovog),
         date: selectedDate,
         startTime: slotTime,
         endTime,
@@ -831,7 +841,7 @@ export default function OnlineBookingPage() {
                   }}
                 >
                   <div style={{ fontWeight: 700, fontSize: 15, color: isSelectedDoctor ? "#ea580c" : "#111827" }}>
-                    {formatDoctorShortName(doc.name)}
+                    {formatDoctorShortName(doc.name, doc.ovog)}
                   </div>
                   <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
                     {doc.scheduleStart}–{doc.scheduleEnd}
@@ -861,7 +871,7 @@ export default function OnlineBookingPage() {
             <div style={{ background: "#fff", width: "min(560px, 100%)", maxHeight: "85vh", overflowY: "auto", borderRadius: 14, padding: 16 }}>
               <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17 }}>Эмч: {formatDoctorShortName(selectedDoctor.name)}</h3>
+                  <h3 style={{ margin: 0, fontSize: 17 }}>Эмч: {formatDoctorShortName(selectedDoctor.name, selectedDoctor.ovog)}</h3>
                   <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 12 }}>
                     Ажиллах цаг: {selectedDoctor.scheduleStart}–{selectedDoctor.scheduleEnd}
                   </p>
@@ -926,7 +936,7 @@ export default function OnlineBookingPage() {
             <div style={{ background: "#fff", width: "min(420px, 100%)", borderRadius: 14, padding: 16 }}>
               <h3 style={{ margin: 0, fontSize: 17, marginBottom: 10 }}>Цаг баталгаажуулах уу?</h3>
               <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.7 }}>
-                <div><b>Эмч:</b> {formatDoctorShortName(pendingConfirmation.doctor.name)}</div>
+                <div><b>Эмч:</b> {formatDoctorShortName(pendingConfirmation.doctor.name, pendingConfirmation.doctor.ovog)}</div>
                 <div><b>Үйлчилгээ:</b> {selectedCategory?.label}</div>
                 <div><b>Өдөр:</b> {selectedDate}</div>
                 <div><b>Цаг:</b> {pendingConfirmation.slot}–{pendingConfirmation.endTime}</div>
