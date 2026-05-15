@@ -207,14 +207,8 @@ router.get("/service-categories", async (req, res) => {
 
 /**
  * GET /api/public/booking-grid?branchId=:id&category=:cat&date=YYYY-MM-DD
- * Return data needed to render the online booking grid:
- *   - doctors: eligible doctors (have schedule at this branch+date)
- *   - slots: time slots based on each doctor's schedule (30 min granularity)
- *   - busy: set of "doctorId:startTime" that are occupied (0 capacity for online)
- *
- * A slot is busy for online booking if ANY active booking exists at that
- * doctor+date+startTime (statuses other than ONLINE_EXPIRED).
- * No patient data is included.
+ * Return lightweight doctor list data for selected branch/category/date.
+ * Slot-level availability is fetched per doctor via /doctor-available-slots.
  */
 router.get("/booking-grid", async (req, res) => {
   try {
@@ -258,7 +252,7 @@ router.get("/booking-grid", async (req, res) => {
     });
     const capableDoctorIds = capableRows.map((r) => r.doctorId);
     if (capableDoctorIds.length === 0) {
-      return res.json({ doctors: [], slots: [], busy: [], durationMinutes, serviceType });
+      return res.json({ doctors: [], durationMinutes, serviceType });
     }
 
     // Get eligible doctors: doctors with both capability and schedule at this branch+date
@@ -272,10 +266,10 @@ router.get("/booking-grid", async (req, res) => {
     });
 
     if (schedules.length === 0) {
-      return res.json({ doctors: [], slots: [], busy: [], durationMinutes, serviceType });
+      return res.json({ doctors: [], durationMinutes, serviceType });
     }
 
-    // Build doctor list and compute time slots per doctor
+    // Build doctor list only (do not expose slot occupancy in this endpoint)
     const doctorMap = new Map();
     for (const sch of schedules) {
       doctorMap.set(sch.doctor.id, {
@@ -285,35 +279,121 @@ router.get("/booking-grid", async (req, res) => {
         scheduleEnd: sch.endTime,
       });
     }
-    const doctors = Array.from(doctorMap.values());
-    const doctorIds = doctors.map((d) => d.id);
+    const doctors = Array.from(doctorMap.values()).sort((a, b) => a.name.localeCompare(b.name, "mn"));
+    return res.json({ doctors, durationMinutes, serviceType });
+  } catch (err) {
+    console.error("GET /api/public/booking-grid error:", err);
+    return res.status(500).json({ error: "Failed to load booking grid" });
+  }
+});
 
-    // Collect all unique time slots across all doctors
-    const allSlotSet = new Set();
-    for (const doctor of doctors) {
-      const slots = generateTimeSlots(doctor.scheduleStart, doctor.scheduleEnd, durationMinutes);
-      for (const s of slots) allSlotSet.add(s);
+/**
+ * GET /api/public/doctor-available-slots?branchId=:id&category=:cat&date=YYYY-MM-DD&doctorId=:id
+ * Returns only available slots for one doctor (no busy-slot exposure).
+ */
+router.get("/doctor-available-slots", async (req, res) => {
+  try {
+    const {
+      branchId,
+      category,
+      date,
+      doctorId,
+      serviceType: serviceTypeRaw,
+    } = req.query;
+
+    if (!branchId || !category || !date || !doctorId) {
+      return res.status(400).json({
+        error: "branchId, category, date, and doctorId are required",
+      });
     }
-    const slots = Array.from(allSlotSet).sort();
 
-    // Fetch all active bookings for these doctors on this date (exclude ONLINE_EXPIRED)
+    const bid = Number(branchId);
+    const did = Number(doctorId);
+    if (Number.isNaN(bid) || Number.isNaN(did)) {
+      return res.status(400).json({ error: "Invalid branchId or doctorId" });
+    }
+
+    const serviceType = normalizeOnlineBookingServiceType(serviceTypeRaw, "TREATMENT");
+    if (!isValidOnlineBookingServiceType(serviceType)) {
+      return res.status(400).json({ error: "Invalid serviceType" });
+    }
+    const allowedCategories = getAllowedCategoriesForServiceType(serviceType);
+    if (!allowedCategories.includes(String(category))) {
+      return res.status(400).json({ error: "Invalid category" });
+    }
+
+    const day = parseDateOrNull(date);
+    if (!day) {
+      return res.status(400).json({ error: "Invalid date (use YYYY-MM-DD)" });
+    }
+
+    const durationMinutes = serviceType === "CONSULTATION"
+      ? 30
+      : (await prisma.serviceCategoryConfig.findUnique({
+          where: { category },
+          select: { durationMinutes: true },
+        }))?.durationMinutes ?? 30;
+
+    const canPerformCategory = await prisma.doctorServiceCategory.findFirst({
+      where: {
+        doctorId: did,
+        category: String(category),
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!canPerformCategory) {
+      return res.status(400).json({ error: "Doctor cannot perform selected service category" });
+    }
+
+    const schedule = await prisma.doctorSchedule.findFirst({
+      where: { doctorId: did, branchId: bid, date: day },
+      select: {
+        startTime: true,
+        endTime: true,
+        doctor: { select: { id: true, name: true } },
+      },
+    });
+    if (!schedule) {
+      return res.json({
+        doctor: null,
+        availableSlots: [],
+        durationMinutes,
+        serviceType,
+      });
+    }
+
+    const allSlots = generateTimeSlots(
+      schedule.startTime,
+      schedule.endTime,
+      durationMinutes,
+    );
     const bookings = await prisma.booking.findMany({
       where: {
         branchId: bid,
         date: day,
-        doctorId: { in: doctorIds },
+        doctorId: did,
         status: { not: BookingStatus.ONLINE_EXPIRED },
       },
-      select: { doctorId: true, startTime: true },
+      select: { startTime: true },
     });
+    const busyStartTimes = new Set(bookings.map((b) => b.startTime));
+    const availableSlots = allSlots.filter((slot) => !busyStartTimes.has(slot));
 
-    // Build busy set: "doctorId:startTime"
-    const busy = bookings.map((b) => `${b.doctorId}:${b.startTime}`);
-
-    return res.json({ doctors, slots, busy, durationMinutes, serviceType });
+    return res.json({
+      doctor: {
+        id: schedule.doctor.id,
+        name: schedule.doctor.name || `Эмч #${did}`,
+        scheduleStart: schedule.startTime,
+        scheduleEnd: schedule.endTime,
+      },
+      availableSlots,
+      durationMinutes,
+      serviceType,
+    });
   } catch (err) {
-    console.error("GET /api/public/booking-grid error:", err);
-    return res.status(500).json({ error: "Failed to load booking grid" });
+    console.error("GET /api/public/doctor-available-slots error:", err);
+    return res.status(500).json({ error: "Failed to load doctor slots" });
   }
 });
 
@@ -668,7 +748,7 @@ router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => 
       select: { id: true },
     });
     if (!canPerformCategory) {
-      return res.status(400).json({ error: "Doctor cannot perform selected treatment category" });
+      return res.status(400).json({ error: "Doctor cannot perform selected service category" });
     }
 
     const branchId = draft.branchId;

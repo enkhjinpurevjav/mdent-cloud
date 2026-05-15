@@ -23,9 +23,15 @@ type Doctor = {
 
 type BookingGrid = {
   doctors: Doctor[];
-  slots: string[]; // "HH:MM"
-  busy: string[]; // "doctorId:startTime"
   durationMinutes: number;
+  serviceType?: OnlineBookingServiceType;
+};
+
+type DoctorAvailableSlotsResponse = {
+  doctor: Doctor | null;
+  availableSlots: string[];
+  durationMinutes: number;
+  serviceType?: OnlineBookingServiceType;
 };
 
 type HoldResponse = {
@@ -74,6 +80,16 @@ function addMinutes(timeStr: string, minutes: number): string {
 function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function formatDoctorShortName(fullName: string): string {
+  const parts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    const firstInitial = parts[0].charAt(0).toUpperCase();
+    const lastName = parts[parts.length - 1];
+    return `${firstInitial}.${lastName}`;
+  }
+  return fullName || "";
 }
 
 const INPUT_STYLE: React.CSSProperties = {
@@ -151,6 +167,16 @@ export default function OnlineBookingPage() {
   const [grid, setGrid] = useState<BookingGrid | null>(null);
   const [loadingGrid, setLoadingGrid] = useState(false);
   const [gridError, setGridError] = useState<string | null>(null);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
+  const [doctorSlots, setDoctorSlots] = useState<string[]>([]);
+  const [doctorSlotsLoading, setDoctorSlotsLoading] = useState(false);
+  const [doctorSlotsError, setDoctorSlotsError] = useState<string | null>(null);
+  const [doctorSlotDurationMinutes, setDoctorSlotDurationMinutes] = useState<number | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<{
+    doctor: Doctor;
+    slot: string;
+    endTime: string;
+  } | null>(null);
 
   // Step 5 – payment
   const [holdData, setHoldData] = useState<HoldResponse | null>(null);
@@ -216,6 +242,10 @@ export default function OnlineBookingPage() {
     setLoadingGrid(true);
     setGridError(null);
     setGrid(null);
+    setSelectedDoctor(null);
+    setDoctorSlots([]);
+    setDoctorSlotsError(null);
+    setPendingConfirmation(null);
     try {
       const url = `/api/public/booking-grid?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}&serviceType=${selectedServiceType}`;
       const res = await fetch(url);
@@ -232,9 +262,47 @@ export default function OnlineBookingPage() {
     }
   }, [selectedBranchId, selectedCategory, selectedDate, selectedServiceType]);
 
+  const closeDoctorSlotsModal = useCallback(() => {
+    setSelectedDoctor(null);
+    setDoctorSlots([]);
+    setDoctorSlotsError(null);
+    setDoctorSlotsLoading(false);
+    setDoctorSlotDurationMinutes(null);
+    setPendingConfirmation(null);
+  }, []);
+
+  const loadDoctorAvailableSlots = useCallback(async (doctor: Doctor) => {
+    if (!selectedBranchId || !selectedCategory || !selectedDate) return;
+    setSelectedDoctor(doctor);
+    setDoctorSlotsLoading(true);
+    setDoctorSlotsError(null);
+    setDoctorSlots([]);
+    setPendingConfirmation(null);
+
+    try {
+      const url = `/api/public/doctor-available-slots?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}&doctorId=${doctor.id}&serviceType=${selectedServiceType}`;
+      const res = await fetch(url);
+      const data = (await res.json()) as DoctorAvailableSlotsResponse & { error?: string };
+      if (!res.ok) {
+        setDoctorSlotsError(data.error || "Цагийн мэдээлэл ачааллах үед алдаа гарлаа.");
+        return;
+      }
+      if (data.doctor) setSelectedDoctor(data.doctor);
+      setDoctorSlots(Array.isArray(data.availableSlots) ? data.availableSlots : []);
+      if (typeof data.durationMinutes === "number") {
+        setDoctorSlotDurationMinutes(data.durationMinutes);
+      }
+    } catch {
+      setDoctorSlotsError("Сүлжээний алдаа. Дахин оролдоно уу.");
+    } finally {
+      setDoctorSlotsLoading(false);
+    }
+  }, [selectedBranchId, selectedCategory, selectedDate, selectedServiceType]);
+
   useEffect(() => {
     if (step === 4) loadGrid();
-  }, [step, loadGrid]);
+    if (step !== 4) closeDoctorSlotsModal();
+  }, [step, loadGrid, closeDoctorSlotsModal]);
 
   // ── Payment polling ───────────────────────────────────────────────────────
 
@@ -354,7 +422,10 @@ export default function OnlineBookingPage() {
 
   async function handleSlotClick(doctor: Doctor, slotTime: string) {
     if (!selectedBranchId || !selectedCategory || !selectedDate || !draftId) return;
-    const endTime = addMinutes(slotTime, selectedCategory.durationMinutes);
+    const effectiveDuration = doctorSlotDurationMinutes
+      ?? grid?.durationMinutes
+      ?? selectedCategory.durationMinutes;
+    const endTime = addMinutes(slotTime, effectiveDuration);
     setHoldError(null);
     setStartError(null);
     setHoldLoading(true);
@@ -413,6 +484,12 @@ export default function OnlineBookingPage() {
     setBookingSummary(null);
     setPaymentStatus("PENDING");
     setGrid(null);
+    setSelectedDoctor(null);
+    setDoctorSlots([]);
+    setDoctorSlotsError(null);
+    setDoctorSlotsLoading(false);
+    setDoctorSlotDurationMinutes(null);
+    setPendingConfirmation(null);
     setSelectedServiceType("TREATMENT");
     setSelectedCategory(null);
     setSelectedDate(todayStr());
@@ -714,7 +791,7 @@ export default function OnlineBookingPage() {
           {selectedCategory?.label} · {selectedDate} · {grid?.durationMinutes ?? selectedCategory?.durationMinutes} минут
         </p>
         <p style={{ color: "#6b7280", fontSize: 12, marginBottom: 16 }}>
-          Боломжтой цаг дээр дарж захиална уу. "Захиалгатай" гэсэн цаг захиалах боломжгүй.
+          Эмчээ сонгоод гарч ирэх цонхоноос зөвхөн боломжтой цагуудаас сонгон захиална уу.
         </p>
 
         {loadingGrid && <p style={{ color: "#6b7280" }}>Ачааллаж байна...</p>}
@@ -733,76 +810,34 @@ export default function OnlineBookingPage() {
         )}
 
         {grid && !loadingGrid && grid.doctors.length > 0 && (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ borderCollapse: "collapse", minWidth: 400, width: "100%", fontSize: 13 }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  <th style={{ padding: "8px 10px", border: "1px solid #e5e7eb", textAlign: "left", width: 64, minWidth: 56 }}>Цаг</th>
-                  {grid.doctors.map((doc) => (
-                    <th key={doc.id} style={{ padding: "8px 10px", border: "1px solid #e5e7eb", textAlign: "center" }}>
-                      <div style={{ fontWeight: 600 }}>{doc.name}</div>
-                      <div style={{ fontSize: 11, color: "#6b7280", fontWeight: 400 }}>
-                        {doc.scheduleStart}–{doc.scheduleEnd}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {grid.slots.map((slot) => (
-                  <tr key={slot}>
-                    <td style={{ padding: "6px 10px", border: "1px solid #e5e7eb", color: "#374151", fontWeight: 500 }}>
-                      {slot}
-                    </td>
-                    {grid.doctors.map((doc) => {
-                      const slotMin = Number(slot.split(":")[0]) * 60 + Number(slot.split(":")[1]);
-                      const startMin = Number(doc.scheduleStart.split(":")[0]) * 60 + Number(doc.scheduleStart.split(":")[1]);
-                      const endMin = Number(doc.scheduleEnd.split(":")[0]) * 60 + Number(doc.scheduleEnd.split(":")[1]);
-                      const inSchedule = slotMin >= startMin && slotMin < endMin;
-
-                      if (!inSchedule) {
-                        return (
-                          <td key={doc.id} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", background: "#f3f4f6" }} />
-                        );
-                      }
-
-                      const isBusy = grid.busy.includes(`${doc.id}:${slot}`);
-                      if (isBusy) {
-                        return (
-                          <td key={doc.id} style={{ padding: "6px 10px", border: "1px solid #e5e7eb", textAlign: "center" }}>
-                            <span style={{ background: "#fee2e2", color: "#991b1b", borderRadius: 6, padding: "3px 8px", fontSize: 12 }}>
-                              Захиалгатай
-                            </span>
-                          </td>
-                        );
-                      }
-
-                      return (
-                        <td key={doc.id} style={{ padding: "4px 6px", border: "1px solid #e5e7eb", textAlign: "center" }}>
-                          <button
-                            type="button"
-                            disabled={holdLoading}
-                            onClick={() => handleSlotClick(doc, slot)}
-                            style={{
-                              background: "#f0fdf4",
-                              color: "#15803d",
-                              border: "1px solid #86efac",
-                              borderRadius: 6,
-                              padding: "4px 10px",
-                              fontSize: 12,
-                              cursor: holdLoading ? "not-allowed" : "pointer",
-                              fontWeight: 500,
-                            }}
-                          >
-                            Захиалах
-                          </button>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div style={{ display: "grid", gap: 10 }}>
+            {grid.doctors.map((doc) => {
+              const isSelectedDoctor = selectedDoctor?.id === doc.id;
+              return (
+                <button
+                  key={doc.id}
+                  type="button"
+                  onClick={() => {
+                    void loadDoctorAvailableSlots(doc);
+                  }}
+                  style={{
+                    textAlign: "left",
+                    padding: "12px 14px",
+                    borderRadius: 10,
+                    border: `2px solid ${isSelectedDoctor ? "#f97316" : "#e5e7eb"}`,
+                    background: isSelectedDoctor ? "#fff7ed" : "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: 15, color: isSelectedDoctor ? "#ea580c" : "#111827" }}>
+                    {formatDoctorShortName(doc.name)}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
+                    {doc.scheduleStart}–{doc.scheduleEnd}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -810,6 +845,113 @@ export default function OnlineBookingPage() {
           <button style={BTN_GHOST} onClick={() => { setHoldError(null); setStep(3); }}>← Буцах</button>
           <button style={BTN_GHOST} onClick={loadGrid}>🔄 Шинэчлэх</button>
         </div>
+
+        {selectedDoctor && (
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(17, 24, 39, 0.45)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 50,
+            padding: 12,
+          }}>
+            <div style={{ background: "#fff", width: "min(560px, 100%)", maxHeight: "85vh", overflowY: "auto", borderRadius: 14, padding: 16 }}>
+              <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 17 }}>Эмч: {formatDoctorShortName(selectedDoctor.name)}</h3>
+                  <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 12 }}>
+                    Ажиллах цаг: {selectedDoctor.scheduleStart}–{selectedDoctor.scheduleEnd}
+                  </p>
+                </div>
+                <button type="button" onClick={closeDoctorSlotsModal} style={BTN_GHOST}>✕</button>
+              </div>
+
+              {doctorSlotsLoading && <p style={{ color: "#6b7280", fontSize: 13 }}>Сул цаг ачааллаж байна...</p>}
+              {doctorSlotsError && <p style={{ color: "#b91c1c", fontSize: 13 }}>{doctorSlotsError}</p>}
+              {!doctorSlotsLoading && !doctorSlotsError && doctorSlots.length === 0 && (
+                <p style={{ color: "#6b7280", fontSize: 13 }}>Энэ эмчид сонгосон өдөр сул цаг алга.</p>
+              )}
+              {!doctorSlotsLoading && !doctorSlotsError && doctorSlots.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gap: 8 }}>
+                  {doctorSlots.map((slot) => (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={holdLoading}
+                      onClick={() => {
+                        const effectiveDuration = doctorSlotDurationMinutes
+                          ?? grid?.durationMinutes
+                          ?? selectedCategory?.durationMinutes
+                          ?? 30;
+                        setPendingConfirmation({
+                          doctor: selectedDoctor,
+                          slot,
+                          endTime: addMinutes(slot, effectiveDuration),
+                        });
+                      }}
+                      style={{
+                        border: "1px solid #86efac",
+                        borderRadius: 8,
+                        background: "#f0fdf4",
+                        color: "#166534",
+                        padding: "8px 6px",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: holdLoading ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {slot}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {pendingConfirmation && (
+          <div style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(17, 24, 39, 0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 60,
+            padding: 12,
+          }}>
+            <div style={{ background: "#fff", width: "min(420px, 100%)", borderRadius: 14, padding: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 17, marginBottom: 10 }}>Цаг баталгаажуулах уу?</h3>
+              <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.7 }}>
+                <div><b>Эмч:</b> {formatDoctorShortName(pendingConfirmation.doctor.name)}</div>
+                <div><b>Үйлчилгээ:</b> {selectedCategory?.label}</div>
+                <div><b>Өдөр:</b> {selectedDate}</div>
+                <div><b>Цаг:</b> {pendingConfirmation.slot}–{pendingConfirmation.endTime}</div>
+              </div>
+              <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button type="button" style={BTN_GHOST} onClick={() => setPendingConfirmation(null)}>
+                  Болих
+                </button>
+                <button
+                  type="button"
+                  style={BTN_PRIMARY}
+                  disabled={holdLoading}
+                  onClick={() => {
+                    const decision = pendingConfirmation;
+                    setPendingConfirmation(null);
+                    if (!decision) return;
+                    closeDoctorSlotsModal();
+                    void handleSlotClick(decision.doctor, decision.slot);
+                  }}
+                >
+                  Баталгаажуулах
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
