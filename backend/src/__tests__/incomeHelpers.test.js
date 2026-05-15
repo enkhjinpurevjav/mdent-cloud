@@ -21,6 +21,7 @@ import {
   discountPercentEnumToNumber,
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
+  deallocatePaymentProportionalByAllocated,
   computeOverrideSalesFromAllocations,
 } from "../utils/incomeHelpers.js";
 
@@ -235,6 +236,34 @@ describe("allocatePaymentProportionalByRemaining – all lines already paid", ()
     const result = allocatePaymentProportionalByRemaining(5000, [1, 2], remainingDue);
     assert.equal(result.get(1), 0);
     assert.equal(result.get(2), 0);
+  });
+});
+
+describe("deallocatePaymentProportionalByAllocated – full reversal zeroes allocations", () => {
+  it("reverses full allocated amount back to zero", () => {
+    const allocatedByItem = new Map([
+      [1, 50000],
+      [2, 950000],
+    ]);
+    const result = deallocatePaymentProportionalByAllocated(1000000, [1, 2], allocatedByItem);
+    const total = [...result.values()].reduce((s, v) => s + v, 0);
+    assert.equal(total, 1000000);
+    assert.equal(allocatedByItem.get(1), 0);
+    assert.equal(allocatedByItem.get(2), 0);
+  });
+});
+
+describe("deallocatePaymentProportionalByAllocated – partial reversal", () => {
+  it("reduces allocations proportionally for partial return", () => {
+    const allocatedByItem = new Map([
+      [1, 25000],
+      [2, 125000],
+    ]);
+    const result = deallocatePaymentProportionalByAllocated(50000, [1, 2], allocatedByItem);
+    const total = [...result.values()].reduce((s, v) => s + v, 0);
+    assert.equal(total, 50000);
+    assert.equal(allocatedByItem.get(1), 18750);
+    assert.equal(allocatedByItem.get(2), 81250);
   });
 });
 
