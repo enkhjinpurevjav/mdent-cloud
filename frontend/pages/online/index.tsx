@@ -79,6 +79,14 @@ function addMinutes(timeStr: string, minutes: number): string {
   return `${pad2(Math.floor(total / 60) % 24)}:${pad2(total % 60)}`;
 }
 
+function normalizePhone(value: string): string {
+  return String(value || "").replace(/\D/g, "").slice(0, 8);
+}
+
+function isValidPhone(value: string): boolean {
+  return /^\d{8}$/.test(String(value || ""));
+}
+
 function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -157,6 +165,8 @@ export default function OnlineBookingPage() {
   // Step 1 – personal details
   const [info, setInfo] = useState<PersonalInfo>({ ovog: "", name: "", phone: "", regNo: "" });
   const [infoErrors, setInfoErrors] = useState<Partial<PersonalInfo>>({});
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<number | null>(null);
   const [draftMatchStatus, setDraftMatchStatus] = useState<DraftMatchStatus | null>(null);
   const [draftExpiresAt, setDraftExpiresAt] = useState<string | null>(null);
@@ -194,6 +204,8 @@ export default function OnlineBookingPage() {
   const [holdLoading, setHoldLoading] = useState(false);
   const [holdError, setHoldError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("PENDING");
+  const [paymentCheckLoading, setPaymentCheckLoading] = useState(false);
+  const [paymentCheckMessage, setPaymentCheckMessage] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(600); // seconds
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -324,6 +336,30 @@ export default function OnlineBookingPage() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
+  const checkPaymentStatusOnce = useCallback(async (draftIdForPolling: number): Promise<"PAID" | "EXPIRED" | "PENDING"> => {
+    const res = await fetch(`/api/public/online-booking/drafts/${draftIdForPolling}/payment-status`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || "Төлбөр шалгах үед алдаа гарлаа.");
+    }
+
+    if (data.status === "PAID") {
+      setPaymentStatus("PAID");
+      stopPolling();
+      setStep(6);
+      return "PAID";
+    }
+
+    if (data.status === "EXPIRED" || data.status === "CANCELLED") {
+      setPaymentStatus("EXPIRED");
+      stopPolling();
+      setStep(6);
+      return "EXPIRED";
+    }
+
+    return "PENDING";
+  }, [stopPolling]);
+
   const startPolling = useCallback((draftIdForPolling: number, expiresAt: Date) => {
     const secondsLeft = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
     setTimeLeft(secondsLeft);
@@ -340,24 +376,12 @@ export default function OnlineBookingPage() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/public/online-booking/drafts/${draftIdForPolling}/payment-status`);
-        const data = await res.json();
-        if (data.status === "PAID") {
-          setPaymentStatus("PAID");
-          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-          setStep(6);
-        } else if (data.status === "EXPIRED" || data.status === "CANCELLED") {
-          setPaymentStatus("EXPIRED");
-          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-          setStep(6);
-        }
+        await checkPaymentStatusOnce(draftIdForPolling);
       } catch (_e) {
         // ignore poll errors; will retry
       }
     }, 5000);
-  }, []); // State setters (setPaymentStatus, setStep, setTimeLeft) are stable refs from useState; refs are mutable objects excluded from deps
+  }, [checkPaymentStatusOnce]); // State setters are stable refs from useState; refs are mutable objects excluded from deps
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -365,10 +389,11 @@ export default function OnlineBookingPage() {
     const errors: Partial<PersonalInfo> = {};
     if (!info.ovog.trim()) errors.ovog = "Овог оруулна уу";
     if (!info.name.trim()) errors.name = "Нэр оруулна уу";
-    if (!info.phone.trim()) errors.phone = "Утасны дугаар оруулна уу";
+    if (!isValidPhone(normalizePhone(info.phone))) errors.phone = "Утасны дугаар 8 оронтой тоо байх ёстой";
     if (!info.regNo.trim()) errors.regNo = "Регистр оруулна уу";
+    setConsentError(consentAccepted ? null : "Үйлчилгээний нөхцөлтэй зөвшөөрөх шаардлагатай.");
     setInfoErrors(errors);
-    return Object.keys(errors).length === 0;
+    return Object.keys(errors).length === 0 && consentAccepted;
   }
 
   async function updateDraft(payload: Record<string, unknown>, fallbackError: string): Promise<boolean> {
@@ -411,8 +436,9 @@ export default function OnlineBookingPage() {
         body: JSON.stringify({
           ovog: info.ovog,
           name: info.name,
-          phone: info.phone,
+          phone: normalizePhone(info.phone),
           regNo: info.regNo,
+          consentAccepted,
         }),
       });
       const data = await res.json();
@@ -477,6 +503,7 @@ export default function OnlineBookingPage() {
       });
       setPaymentStatus("PENDING");
       setStep(5);
+      setPaymentCheckMessage(null);
       if (typeof data.expiresAt === "string") {
         setDraftExpiresAt(data.expiresAt);
       }
@@ -494,6 +521,8 @@ export default function OnlineBookingPage() {
     setHoldError(null);
     setBookingSummary(null);
     setPaymentStatus("PENDING");
+    setPaymentCheckLoading(false);
+    setPaymentCheckMessage(null);
     setGrid(null);
     setSelectedDoctor(null);
     setDoctorSlots([]);
@@ -509,6 +538,8 @@ export default function OnlineBookingPage() {
     setDraftExpiresAt(null);
     setStartError(null);
     setStartLoading(false);
+    setConsentAccepted(false);
+    setConsentError(null);
     setStep(1);
   }
 
@@ -572,9 +603,15 @@ export default function OnlineBookingPage() {
                   style={{ ...INPUT_STYLE, borderColor: infoErrors[field] ? "#ef4444" : "#d1d5db" }}
                   placeholder={placeholders[field]}
                   value={info[field]}
+                  inputMode={field === "phone" ? "numeric" : undefined}
+                  maxLength={field === "phone" ? 8 : undefined}
                   onChange={(e) => {
-                    setInfo((prev) => ({ ...prev, [field]: e.target.value }));
+                    const nextValue = field === "phone" ? normalizePhone(e.target.value) : e.target.value;
+                    setInfo((prev) => ({ ...prev, [field]: nextValue }));
                     setInfoErrors((prev) => ({ ...prev, [field]: undefined }));
+                    if (field === "phone" && isValidPhone(nextValue)) {
+                      setInfoErrors((prev) => ({ ...prev, phone: undefined }));
+                    }
                     setStartError(null);
                   }}
                 />
@@ -584,6 +621,27 @@ export default function OnlineBookingPage() {
               </div>
             );
           })}
+        </div>
+        <div style={{ marginTop: 14, borderRadius: 8, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: "#374151" }}>
+            Цаг захиалга баталгаажуулалт 20,000 төгрөг болох ба энэхүү төлбөр нь таны эмчилгээний төлбөрөөс хасагдана.
+            Хэрэв та захиалсан цагтаа ирээгүй тохиолдолд энэхүү төлбөр буцаан олгогдогүйг анхаарна уу?
+            Та захиалсан цагаасаа 24 цагийн өмнө бидэнтэй 77151551 дугаарт холбогдож нэмэлт хураамжгүй өөрчлөх боломжтой.
+          </p>
+          <label style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#111827", fontWeight: 600 }}>
+            <input
+              type="checkbox"
+              checked={consentAccepted}
+              onChange={(e) => {
+                setConsentAccepted(e.target.checked);
+                if (e.target.checked) setConsentError(null);
+              }}
+            />
+            Би зөвшөөрч байна.
+          </label>
+          {consentError && (
+            <p style={{ color: "#ef4444", fontSize: 12, margin: "6px 0 0" }}>{consentError}</p>
+          )}
         </div>
         {startError && (
           <div style={{ marginTop: 12, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 10, fontSize: 13 }}>
@@ -604,7 +662,7 @@ export default function OnlineBookingPage() {
       <div>
         <h2 style={{ fontSize: 18, marginBottom: 4 }}>Үйлчилгээ сонгох</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
-          Үйлчилгээний төрөл болон ангиллаа сонгоно уу.
+          Үйлчилгээний төрөл болон ангилалыг сонгоно уу.
         </p>
         {draftMatchStatus === "EXISTING" && (
           <div style={{ marginBottom: 12, borderRadius: 8, border: "1px solid #fcd34d", background: "#fffbeb", padding: "10px 12px", color: "#92400e", fontSize: 12 }}>
@@ -802,7 +860,7 @@ export default function OnlineBookingPage() {
           {selectedCategory?.label} · {selectedDate} · {grid?.durationMinutes ?? selectedCategory?.durationMinutes} минут
         </p>
         <p style={{ color: "#6b7280", fontSize: 12, marginBottom: 16 }}>
-          Эмчээ сонгоод гарч ирэх цонхоноос зөвхөн боломжтой цагуудаас сонгон захиална уу.
+          Эмч сонгоод гарч ирэх цонхноос зөвхөн боломжтой цагуудаас сонгон захиална уу.
         </p>
 
         {loadingGrid && <p style={{ color: "#6b7280" }}>Ачааллаж байна...</p>}
@@ -1008,6 +1066,36 @@ export default function OnlineBookingPage() {
               style={{ width: 200, height: 200, border: "1px solid #e5e7eb", borderRadius: 8 }}
             />
             <p style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>QPay QR кодыг уншуулна уу</p>
+          </div>
+        )}
+
+        {draftId && (
+          <div style={{ textAlign: "center", marginBottom: 14 }}>
+            <button
+              type="button"
+              style={{ ...BTN_PRIMARY, background: "#2563eb", padding: "10px 18px", fontSize: 14 }}
+              disabled={paymentCheckLoading}
+              onClick={async () => {
+                if (!draftId) return;
+                setPaymentCheckLoading(true);
+                setPaymentCheckMessage(null);
+                try {
+                  const result = await checkPaymentStatusOnce(draftId);
+                  if (result === "PENDING") {
+                    setPaymentCheckMessage("Төлбөр бүртгэгдээгүй байна. Дахин шалгана уу.");
+                  }
+                } catch (err) {
+                  setPaymentCheckMessage(err instanceof Error ? err.message : "Төлбөр шалгах үед алдаа гарлаа.");
+                } finally {
+                  setPaymentCheckLoading(false);
+                }
+              }}
+            >
+              {paymentCheckLoading ? "Шалгаж байна..." : "Төлбөр шалгах"}
+            </button>
+            {paymentCheckMessage && (
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: "#6b7280" }}>{paymentCheckMessage}</p>
+            )}
           </div>
         )}
 

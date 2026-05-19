@@ -33,6 +33,14 @@ const ONLINE_BOOKING_CONSULTATION_CATEGORIES = [
   "DEFECT_CORRECTION",
   "CHILD_TREATMENT",
 ];
+const ONLINE_ACTIVE_BOOKING_STATUSES = [
+  BookingStatus.PENDING,
+  BookingStatus.CONFIRMED,
+  BookingStatus.IN_PROGRESS,
+  BookingStatus.ONLINE_HELD,
+  BookingStatus.ONLINE_CONFIRMED,
+];
+const DEFAULT_APPOINTMENT_DURATION_MINUTES = 30;
 
 const onlineBookingStartLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
@@ -52,6 +60,111 @@ function addMinutes(timeStr, minutes) {
   const hh = String(Math.floor(total / 60) % 24).padStart(2, "0");
   const mm = String(total % 60).padStart(2, "0");
   return `${hh}:${mm}`;
+}
+
+function timeToMinutes(timeStr) {
+  if (!isValidTime(timeStr)) return null;
+  const [h, m] = String(timeStr).split(":").map(Number);
+  return h * 60 + m;
+}
+
+function formatTimeFromDate(dateValue) {
+  if (!(dateValue instanceof Date) || Number.isNaN(dateValue.getTime())) return null;
+  const hh = String(dateValue.getHours()).padStart(2, "0");
+  const mm = String(dateValue.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function getDayBounds(day) {
+  const start = new Date(day);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(day);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function normalizePhone(phoneRaw) {
+  return String(phoneRaw ?? "").replace(/\D/g, "");
+}
+
+function isValidPhone(phoneRaw) {
+  return /^\d{8}$/.test(String(phoneRaw || ""));
+}
+
+async function getBusyRangesForDoctor({ branchId, doctorId, day, appointmentFallbackMinutes }) {
+  const { start: dayStart, end: dayEnd } = getDayBounds(day);
+  const now = new Date();
+  const [bookings, appointments] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        branchId,
+        doctorId,
+        date: day,
+        status: { in: ONLINE_ACTIVE_BOOKING_STATUSES },
+      },
+      select: {
+        status: true,
+        startTime: true,
+        endTime: true,
+        deposit: {
+          select: {
+            status: true,
+            holdExpiresAt: true,
+          },
+        },
+      },
+    }),
+    prisma.appointment.findMany({
+      where: {
+        branchId,
+        doctorId,
+        status: { not: "cancelled" },
+        scheduledAt: { gte: dayStart, lte: dayEnd },
+      },
+      select: { scheduledAt: true, endAt: true },
+    }),
+  ]);
+
+  const ranges = [];
+
+  for (const booking of bookings) {
+    // Online held bookings should only block slots while hold is valid.
+    if (booking.status === BookingStatus.ONLINE_HELD) {
+      const deposit = booking.deposit;
+      if (!deposit) continue;
+      if (deposit.status === "EXPIRED" || deposit.status === "CANCELLED") continue;
+      if (deposit.holdExpiresAt && deposit.holdExpiresAt <= now) continue;
+    }
+
+    const startMinutes = timeToMinutes(booking.startTime);
+    const endMinutes = timeToMinutes(booking.endTime);
+    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) continue;
+    ranges.push({ startMinutes, endMinutes });
+  }
+
+  for (const appointment of appointments) {
+    const appointmentStart = formatTimeFromDate(appointment.scheduledAt);
+    const appointmentEnd = appointment.endAt
+      ? formatTimeFromDate(appointment.endAt)
+      : addMinutes(appointmentStart || "00:00", appointmentFallbackMinutes);
+    const startMinutes = timeToMinutes(appointmentStart || "");
+    const endMinutes = timeToMinutes(appointmentEnd || "");
+    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) continue;
+    ranges.push({ startMinutes, endMinutes });
+  }
+
+  return ranges;
+}
+
+function isSlotBusy(slotStartTime, slotEndTime, busyRanges) {
+  const slotStartMinutes = timeToMinutes(slotStartTime);
+  const slotEndMinutes = timeToMinutes(slotEndTime);
+  if (slotStartMinutes === null || slotEndMinutes === null || slotEndMinutes <= slotStartMinutes) {
+    return true;
+  }
+  return busyRanges.some(
+    (range) => range.startMinutes < slotEndMinutes && range.endMinutes > slotStartMinutes,
+  );
 }
 
 function isValidOnlineBookingServiceType(value) {
@@ -372,17 +485,16 @@ router.get("/doctor-available-slots", async (req, res) => {
       schedule.endTime,
       durationMinutes,
     );
-    const bookings = await prisma.booking.findMany({
-      where: {
-        branchId: bid,
-        date: day,
-        doctorId: did,
-        status: { not: BookingStatus.ONLINE_EXPIRED },
-      },
-      select: { startTime: true },
+    const busyRanges = await getBusyRangesForDoctor({
+      branchId: bid,
+      doctorId: did,
+      day,
+      appointmentFallbackMinutes: durationMinutes || DEFAULT_APPOINTMENT_DURATION_MINUTES,
     });
-    const busyStartTimes = new Set(bookings.map((b) => b.startTime));
-    const availableSlots = allSlots.filter((slot) => !busyStartTimes.has(slot));
+    const availableSlots = allSlots.filter((slot) => {
+      const slotEnd = addMinutes(slot, durationMinutes);
+      return !isSlotBusy(slot, slotEnd, busyRanges);
+    });
 
     return res.json({
       doctor: {
@@ -440,7 +552,7 @@ async function getDraftOrError(draftIdRaw, res) {
 /**
  * POST /api/public/online-booking/start
  * Initializes online booking Step 1 draft without creating/updating Patient.
- * Body: { ovog, name, phone, regNo }
+ * Body: { ovog, name, phone, regNo, consentAccepted }
  */
 router.post("/online-booking/start", onlineBookingStartLimiter, async (req, res) => {
   try {
@@ -449,11 +561,24 @@ router.post("/online-booking/start", onlineBookingStartLimiter, async (req, res)
       name,
       phone,
       regNo,
+      consentAccepted,
     } = req.body || {};
 
     if (!ovog || !name || !phone || !regNo) {
       return res.status(400).json({
         error: "ovog, name, phone, regNo are required",
+      });
+    }
+    if (consentAccepted !== true) {
+      return res.status(400).json({
+        error: "Consent is required",
+      });
+    }
+
+    const normalizedPhone = normalizePhone(phone);
+    if (!isValidPhone(normalizedPhone)) {
+      return res.status(400).json({
+        error: "phone must be exactly 8 digits",
       });
     }
 
@@ -489,7 +614,7 @@ router.post("/online-booking/start", onlineBookingStartLimiter, async (req, res)
     const note = buildOnlineInfoNote({
       ovog: String(ovog).trim(),
       name: String(name).trim(),
-      phone: String(phone).trim(),
+      phone: normalizedPhone,
       regNo: normalizedRegNo,
       matchStatus,
     });
@@ -501,7 +626,7 @@ router.post("/online-booking/start", onlineBookingStartLimiter, async (req, res)
         matchStatus,
         ovog: String(ovog).trim(),
         name: String(name).trim(),
-        phone: String(phone).trim(),
+        phone: normalizedPhone,
         regNoRaw: String(regNo).trim(),
         regNoNormalized: normalizedRegNo,
         note,
@@ -772,34 +897,13 @@ router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => 
       });
     }
 
-    const activeStatuses = [
-      BookingStatus.PENDING,
-      BookingStatus.CONFIRMED,
-      BookingStatus.IN_PROGRESS,
-      BookingStatus.ONLINE_HELD,
-      BookingStatus.ONLINE_CONFIRMED,
-    ];
-    const collision = await prisma.booking.findFirst({
-      where: {
-        doctorId: did,
-        date: draft.selectedDate,
-        status: { in: activeStatuses },
-        startTime: { lt: endTime },
-        endTime: { gt: startTime },
-      },
+    const busyRanges = await getBusyRangesForDoctor({
+      branchId,
+      doctorId: did,
+      day: draft.selectedDate,
+      appointmentFallbackMinutes: durationMinutes || DEFAULT_APPOINTMENT_DURATION_MINUTES,
     });
-    if (collision) {
-      return res.status(409).json({ error: "Time slot is already taken" });
-    }
-    const exactStartConflict = await prisma.booking.findFirst({
-      where: {
-        doctorId: did,
-        date: draft.selectedDate,
-        startTime,
-        status: { not: BookingStatus.ONLINE_EXPIRED },
-      },
-    });
-    if (exactStartConflict) {
+    if (isSlotBusy(startTime, endTime, busyRanges)) {
       return res.status(409).json({ error: "Time slot is already taken" });
     }
 

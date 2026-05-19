@@ -1,17 +1,21 @@
 /**
  * QPay Service Module
  * Handles QPay sandbox/live API integration for M Dent
- * - Token management with caching
+ * - Token management with in-memory + DB-backed cache
  * - Invoice creation
  * - Payment status checking
  * - Branch-keyed credentials via QPAY_BRANCHES_JSON
  */
+import prisma from "../db.js";
 
-// In-memory token cache keyed by clientId
+// In-memory token cache keyed by cacheKey
 const tokenCacheMap = {};
+const tokenRequestInFlightMap = {};
+let persistentTokenCacheWarningLogged = false;
 
 // Token expiry configuration (in milliseconds)
-const DEFAULT_TOKEN_EXPIRY_MS = 50 * 60 * 1000; // 50 minutes
+const DEFAULT_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24h fallback
+const TOKEN_EXPIRY_SKEW_MS = 30 * 1000; // refresh 30s before expiry
 
 /**
  * Get QPay base URL based on environment
@@ -28,6 +32,222 @@ export function getBaseUrl() {
   return (
     process.env.QPAY_BASE_URL_SANDBOX || "https://merchant-sandbox.qpay.mn"
   );
+}
+
+function getEnvironment() {
+  return (process.env.QPAY_ENV || "sandbox").toLowerCase();
+}
+
+function isPersistentTokenCacheEnabled() {
+  return process.env.QPAY_PERSIST_TOKEN_CACHE !== "false";
+}
+
+function getTokenCacheKey(clientId) {
+  return `${getEnvironment()}:${clientId}`;
+}
+
+function isTokenUsable(token, expiresAtMs, now = Date.now()) {
+  if (!token || !expiresAtMs || Number.isNaN(Number(expiresAtMs))) return false;
+  return Number(expiresAtMs) - TOKEN_EXPIRY_SKEW_MS > now;
+}
+
+function parseExpiryFromTokenResponse(data, nowMs) {
+  const fromExpiresIn = Number(data?.expires_in);
+  if (Number.isFinite(fromExpiresIn) && fromExpiresIn > 0) {
+    return nowMs + (fromExpiresIn * 1000);
+  }
+
+  const rawAbsolute =
+    data?.expires_at ??
+    data?.expiresAt ??
+    data?.expired_at ??
+    data?.expiredAt ??
+    null;
+
+  if (rawAbsolute !== null && rawAbsolute !== undefined && rawAbsolute !== "") {
+    const absoluteNum = Number(rawAbsolute);
+    if (Number.isFinite(absoluteNum) && absoluteNum > 0) {
+      // Heuristic: epoch seconds if below 1e12
+      return absoluteNum < 1e12 ? absoluteNum * 1000 : absoluteNum;
+    }
+
+    const parsed = Date.parse(String(rawAbsolute));
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+
+  return nowMs + DEFAULT_TOKEN_EXPIRY_MS;
+}
+
+function normalizeInvoiceUrls(data) {
+  const candidates =
+    data?.urls ??
+    data?.qPay_deeplink ??
+    data?.qpay_deeplink ??
+    data?.qpayDeepLink ??
+    data?.qpay_deep_link ??
+    [];
+
+  let rawList = candidates;
+  if (typeof rawList === "string") {
+    try {
+      rawList = JSON.parse(rawList);
+    } catch {
+      rawList = [];
+    }
+  }
+  if (!Array.isArray(rawList)) rawList = [];
+
+  const isValidLink = (value) => {
+    const link = String(value || "").trim();
+    if (!link) return false;
+    return /^[a-z][a-z0-9+.-]*:\/\/.+/i.test(link);
+  };
+
+  const normalized = rawList
+    .map((entry) => {
+      const name = String(
+        entry?.name ??
+        entry?.bank_name ??
+        entry?.bankName ??
+        entry?.description ??
+        ""
+      ).trim();
+      const description = String(entry?.description ?? name).trim();
+      const logo = String(entry?.logo ?? entry?.icon ?? "").trim();
+      const link = String(
+        entry?.link ??
+        entry?.url ??
+        entry?.deeplink ??
+        entry?.deep_link ??
+        ""
+      ).trim();
+
+      if (!isValidLink(link)) return null;
+      return {
+        name: name || description || "QPay",
+        description: description || name || "QPay",
+        logo: logo || "",
+        link,
+      };
+    })
+    .filter(Boolean);
+
+  if (normalized.length > 0) return normalized;
+
+  const shortUrl = String(
+    data?.qPay_shortUrl ??
+    data?.qpay_short_url ??
+    data?.short_url ??
+    ""
+  ).trim();
+  if (shortUrl && /^https?:\/\/.+/i.test(shortUrl)) {
+    return [{
+      name: "QPay",
+      description: "QPay линк",
+      logo: "",
+      link: shortUrl,
+    }];
+  }
+
+  return [];
+}
+
+function logPersistentTokenCacheWarning(err) {
+  if (persistentTokenCacheWarningLogged) return;
+  persistentTokenCacheWarningLogged = true;
+  console.warn("QPay token cache persistence unavailable; using in-memory cache only.", {
+    code: err?.code,
+    message: err?.message,
+  });
+}
+
+async function readPersistedToken(cacheKey) {
+  if (!isPersistentTokenCacheEnabled()) return null;
+  try {
+    const row = await prisma.qPayAuthToken.findUnique({
+      where: { cacheKey },
+      select: {
+        accessToken: true,
+        expiresAt: true,
+      },
+    });
+    if (!row) return null;
+    return {
+      token: row.accessToken,
+      expiresAtMs: row.expiresAt.getTime(),
+    };
+  } catch (err) {
+    logPersistentTokenCacheWarning(err);
+    return null;
+  }
+}
+
+async function persistToken(cacheKey, clientId, token, expiresAtMs) {
+  if (!isPersistentTokenCacheEnabled()) return;
+  try {
+    await prisma.qPayAuthToken.upsert({
+      where: { cacheKey },
+      create: {
+        cacheKey,
+        environment: getEnvironment(),
+        clientId,
+        accessToken: token,
+        expiresAt: new Date(expiresAtMs),
+      },
+      update: {
+        environment: getEnvironment(),
+        clientId,
+        accessToken: token,
+        expiresAt: new Date(expiresAtMs),
+      },
+    });
+  } catch (err) {
+    logPersistentTokenCacheWarning(err);
+  }
+}
+
+async function clearPersistedToken(cacheKey) {
+  if (!isPersistentTokenCacheEnabled()) return;
+  try {
+    await prisma.qPayAuthToken.deleteMany({
+      where: { cacheKey },
+    });
+  } catch (err) {
+    logPersistentTokenCacheWarning(err);
+  }
+}
+
+async function requestNewToken(clientId, clientSecret) {
+  const baseUrl = getBaseUrl();
+  const authUrl = `${baseUrl}/v2/auth/token`;
+  const now = Date.now();
+
+  const response = await fetch(authUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
+    },
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => "");
+    throw new Error(
+      `QPay auth failed (${response.status}): ${errorText || response.statusText}`
+    );
+  }
+
+  const data = await response.json();
+  if (!data.access_token) {
+    throw new Error("QPay auth response missing access_token");
+  }
+
+  return {
+    token: data.access_token,
+    expiresAtMs: parseExpiryFromTokenResponse(data, now),
+  };
 }
 
 /**
@@ -69,8 +289,10 @@ export function getBranchCredentials(branchId) {
 /**
  * Get cached access token or request a new one
  * @param {number|string} [branchId] - optional branch ID for per-branch credentials
+ * @param {{ forceRefresh?: boolean }} [options]
  */
-export async function getAccessToken(branchId) {
+export async function getAccessToken(branchId, options = {}) {
+  const { forceRefresh = false } = options;
   const creds = getBranchCredentials(branchId);
   const { clientId, clientSecret } = creds;
 
@@ -80,48 +302,90 @@ export async function getAccessToken(branchId) {
     );
   }
 
-  const cacheKey = clientId;
-  const cache = tokenCacheMap[cacheKey] || { token: null, expiresAt: null };
+  const cacheKey = getTokenCacheKey(clientId);
 
-  // Check if we have a valid cached token
   const now = Date.now();
-  if (cache.token && cache.expiresAt && cache.expiresAt > now) {
-    return cache.token;
+  if (!forceRefresh) {
+    const memoryCache = tokenCacheMap[cacheKey];
+    if (isTokenUsable(memoryCache?.token, memoryCache?.expiresAtMs, now)) {
+      return memoryCache.token;
+    }
+
+    const persisted = await readPersistedToken(cacheKey);
+    if (isTokenUsable(persisted?.token, persisted?.expiresAtMs, now)) {
+      tokenCacheMap[cacheKey] = persisted;
+      return persisted.token;
+    }
   }
 
-  // Request new token
-  const baseUrl = getBaseUrl();
-  const authUrl = `${baseUrl}/v2/auth/token`;
+  if (tokenRequestInFlightMap[cacheKey]) {
+    return tokenRequestInFlightMap[cacheKey];
+  }
 
-  const response = await fetch(authUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
-    },
+  tokenRequestInFlightMap[cacheKey] = (async () => {
+    let fallbackPersisted = null;
+    if (!forceRefresh) {
+      fallbackPersisted = await readPersistedToken(cacheKey);
+    }
+
+    try {
+      const fresh = await requestNewToken(clientId, clientSecret);
+      tokenCacheMap[cacheKey] = fresh;
+      await persistToken(cacheKey, clientId, fresh.token, fresh.expiresAtMs);
+      return fresh.token;
+    } catch (err) {
+      // If provider temporarily blocks re-auth, still try last persisted token.
+      if (fallbackPersisted?.token) {
+        tokenCacheMap[cacheKey] = {
+          token: fallbackPersisted.token,
+          expiresAtMs: now + (5 * 60 * 1000), // short local fallback TTL
+        };
+        return fallbackPersisted.token;
+      }
+      throw err;
+    }
+  })().finally(() => {
+    delete tokenRequestInFlightMap[cacheKey];
   });
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
-    throw new Error(
-      `QPay auth failed (${response.status}): ${errorText || response.statusText}`
-    );
-  }
+  return tokenRequestInFlightMap[cacheKey];
+}
 
-  const data = await response.json();
+export async function invalidateAccessToken(branchId) {
+  const creds = getBranchCredentials(branchId);
+  const clientId = creds?.clientId;
+  if (!clientId) return;
 
-  if (!data.access_token) {
-    throw new Error("QPay auth response missing access_token");
-  }
+  const cacheKey = getTokenCacheKey(clientId);
+  delete tokenCacheMap[cacheKey];
+  delete tokenRequestInFlightMap[cacheKey];
+  await clearPersistedToken(cacheKey);
+}
 
-  // Cache token with expiry (default 50 minutes if not provided)
-  const expiresIn = data.expires_in ? Number(data.expires_in) * 1000 : DEFAULT_TOKEN_EXPIRY_MS;
-  tokenCacheMap[cacheKey] = {
-    token: data.access_token,
-    expiresAt: now + expiresIn,
+async function authorizedFetchWithRetry({ branchId, url, method, payload }) {
+  const makeRequest = async (token) => {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+    };
+    if (payload !== undefined) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    return fetch(url, {
+      method,
+      headers,
+      ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
+    });
   };
 
-  return data.access_token;
+  const firstToken = await getAccessToken(branchId);
+  let response = await makeRequest(firstToken);
+  if (response.status !== 401) return response;
+
+  await invalidateAccessToken(branchId);
+  const refreshedToken = await getAccessToken(branchId, { forceRefresh: true });
+  response = await makeRequest(refreshedToken);
+  return response;
 }
 
 /**
@@ -148,7 +412,6 @@ export async function createInvoice({
     throw new Error("Missing QPAY_INVOICE_CODE environment variable");
   }
 
-  const token = await getAccessToken(branchId);
   const baseUrl = getBaseUrl();
   const invoiceUrl = `${baseUrl}/v2/invoice`;
 
@@ -161,13 +424,11 @@ export async function createInvoice({
     callback_url: callback_url || process.env.QPAY_CALLBACK_URL,
   };
 
-  const response = await fetch(invoiceUrl, {
+  const response = await authorizedFetchWithRetry({
+    branchId,
+    url: invoiceUrl,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
+    payload,
   });
 
   if (!response.ok) {
@@ -184,7 +445,7 @@ export async function createInvoice({
     invoice_id: data.invoice_id,
     qr_text: data.qr_text,
     qr_image: data.qr_image,
-    urls: data.urls || [],
+    urls: normalizeInvoiceUrls(data),
     raw: data,
   };
 }
@@ -196,7 +457,6 @@ export async function createInvoice({
  * @returns {Promise<Object>} Normalized payment status
  */
 export async function checkInvoicePaid(qpayInvoiceId, branchId) {
-  const token = await getAccessToken(branchId);
   const baseUrl = getBaseUrl();
   const checkUrl = `${baseUrl}/v2/payment/check`;
 
@@ -209,13 +469,11 @@ export async function checkInvoicePaid(qpayInvoiceId, branchId) {
     },
   };
 
-  const response = await fetch(checkUrl, {
+  const response = await authorizedFetchWithRetry({
+    branchId,
+    url: checkUrl,
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(payload),
+    payload,
   });
 
   if (!response.ok) {
@@ -259,15 +517,13 @@ export async function checkInvoicePaid(qpayInvoiceId, branchId) {
  * @param {number|string} [branchId] - Optional branch ID for per-branch credentials
  */
 export async function cancelInvoice(qpayInvoiceId, branchId) {
-  const token = await getAccessToken(branchId);
   const baseUrl = getBaseUrl();
   const deleteUrl = `${baseUrl}/v2/invoice/${qpayInvoiceId}`;
 
-  const response = await fetch(deleteUrl, {
+  const response = await authorizedFetchWithRetry({
+    branchId,
+    url: deleteUrl,
     method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
   });
 
   if (!response.ok) {
@@ -278,4 +534,10 @@ export async function cancelInvoice(qpayInvoiceId, branchId) {
   }
 
   return true;
+}
+
+export function __resetTokenCacheForTests() {
+  Object.keys(tokenCacheMap).forEach((k) => delete tokenCacheMap[k]);
+  Object.keys(tokenRequestInFlightMap).forEach((k) => delete tokenRequestInFlightMap[k]);
+  persistentTokenCacheWarningLogged = false;
 }
