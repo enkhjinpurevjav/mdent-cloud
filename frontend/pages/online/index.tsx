@@ -79,6 +79,14 @@ function addMinutes(timeStr: string, minutes: number): string {
   return `${pad2(Math.floor(total / 60) % 24)}:${pad2(total % 60)}`;
 }
 
+function normalizePhone(value: string): string {
+  return String(value || "").replace(/\D/g, "").slice(0, 8);
+}
+
+function isValidPhone(value: string): boolean {
+  return /^\d{8}$/.test(String(value || ""));
+}
+
 function todayStr(): string {
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
@@ -157,6 +165,8 @@ export default function OnlineBookingPage() {
   // Step 1 – personal details
   const [info, setInfo] = useState<PersonalInfo>({ ovog: "", name: "", phone: "", regNo: "" });
   const [infoErrors, setInfoErrors] = useState<Partial<PersonalInfo>>({});
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const [draftId, setDraftId] = useState<number | null>(null);
   const [draftMatchStatus, setDraftMatchStatus] = useState<DraftMatchStatus | null>(null);
   const [draftExpiresAt, setDraftExpiresAt] = useState<string | null>(null);
@@ -365,10 +375,11 @@ export default function OnlineBookingPage() {
     const errors: Partial<PersonalInfo> = {};
     if (!info.ovog.trim()) errors.ovog = "Овог оруулна уу";
     if (!info.name.trim()) errors.name = "Нэр оруулна уу";
-    if (!info.phone.trim()) errors.phone = "Утасны дугаар оруулна уу";
+    if (!isValidPhone(normalizePhone(info.phone))) errors.phone = "Утасны дугаар 8 оронтой тоо байх ёстой";
     if (!info.regNo.trim()) errors.regNo = "Регистр оруулна уу";
+    setConsentError(consentAccepted ? null : "Үйлчилгээний нөхцөлтэй зөвшөөрөх шаардлагатай.");
     setInfoErrors(errors);
-    return Object.keys(errors).length === 0;
+    return Object.keys(errors).length === 0 && consentAccepted;
   }
 
   async function updateDraft(payload: Record<string, unknown>, fallbackError: string): Promise<boolean> {
@@ -411,8 +422,9 @@ export default function OnlineBookingPage() {
         body: JSON.stringify({
           ovog: info.ovog,
           name: info.name,
-          phone: info.phone,
+          phone: normalizePhone(info.phone),
           regNo: info.regNo,
+          consentAccepted,
         }),
       });
       const data = await res.json();
@@ -509,6 +521,8 @@ export default function OnlineBookingPage() {
     setDraftExpiresAt(null);
     setStartError(null);
     setStartLoading(false);
+    setConsentAccepted(false);
+    setConsentError(null);
     setStep(1);
   }
 
@@ -572,9 +586,15 @@ export default function OnlineBookingPage() {
                   style={{ ...INPUT_STYLE, borderColor: infoErrors[field] ? "#ef4444" : "#d1d5db" }}
                   placeholder={placeholders[field]}
                   value={info[field]}
+                  inputMode={field === "phone" ? "numeric" : undefined}
+                  maxLength={field === "phone" ? 8 : undefined}
                   onChange={(e) => {
-                    setInfo((prev) => ({ ...prev, [field]: e.target.value }));
+                    const nextValue = field === "phone" ? normalizePhone(e.target.value) : e.target.value;
+                    setInfo((prev) => ({ ...prev, [field]: nextValue }));
                     setInfoErrors((prev) => ({ ...prev, [field]: undefined }));
+                    if (field === "phone" && isValidPhone(nextValue)) {
+                      setInfoErrors((prev) => ({ ...prev, phone: undefined }));
+                    }
                     setStartError(null);
                   }}
                 />
@@ -584,6 +604,27 @@ export default function OnlineBookingPage() {
               </div>
             );
           })}
+        </div>
+        <div style={{ marginTop: 14, borderRadius: 8, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
+          <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: "#374151" }}>
+            Цаг захиалга баталгаажуулалт 20,000 төгрөг болох ба энэхүү төлбөр нь таны эмчилгээний төлбөрөөс хасагдана.
+            Хэрэв та захиалсан цагтаа ирээгүй тохиолдолд энэхүү төлбөр буцаан олгогдогүйг анхаарна уу?
+            Та захиалсан цагаасаа 24 цагийн өмнө бидэнтэй 77151551 дугаарт холбогдож нэмэлт хураамжгүй өөрчлөх боломжтой.
+          </p>
+          <label style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#111827", fontWeight: 600 }}>
+            <input
+              type="checkbox"
+              checked={consentAccepted}
+              onChange={(e) => {
+                setConsentAccepted(e.target.checked);
+                if (e.target.checked) setConsentError(null);
+              }}
+            />
+            Би зөвшөөрч байна.
+          </label>
+          {consentError && (
+            <p style={{ color: "#ef4444", fontSize: 12, margin: "6px 0 0" }}>{consentError}</p>
+          )}
         </div>
         {startError && (
           <div style={{ marginTop: 12, color: "#b91c1c", background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 10, fontSize: 13 }}>
@@ -604,7 +645,7 @@ export default function OnlineBookingPage() {
       <div>
         <h2 style={{ fontSize: 18, marginBottom: 4 }}>Үйлчилгээ сонгох</h2>
         <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>
-          Үйлчилгээний төрөл болон ангиллаа сонгоно уу.
+          Үйлчилгээний төрөл болон ангилалыг сонгоно уу.
         </p>
         {draftMatchStatus === "EXISTING" && (
           <div style={{ marginBottom: 12, borderRadius: 8, border: "1px solid #fcd34d", background: "#fffbeb", padding: "10px 12px", color: "#92400e", fontSize: 12 }}>
