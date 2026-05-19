@@ -5,6 +5,7 @@ import { requireRole } from "../middleware/auth.js";
 const router = Router();
 const MAX_PRODUCT_IMAGES = 3;
 const MAX_LIMIT = 100;
+const WALLET_ID = 1;
 
 router.use(requireRole("admin", "super_admin"));
 
@@ -34,12 +35,35 @@ function parseLimit(limitRaw) {
   return Math.min(n, MAX_LIMIT);
 }
 
+function parseMoneyAmount(raw, fieldName) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`);
+  }
+  return Number(n.toFixed(2));
+}
+
+function almostEqual(a, b) {
+  return Math.abs(a - b) < 0.01;
+}
+
 async function ensureCategoryExists(categoryId) {
   const category = await prisma.supplyCategory.findUnique({
     where: { id: categoryId },
     select: { id: true },
   });
   return Boolean(category);
+}
+
+async function ensureWallet(prismaTx) {
+  const existing = await prismaTx.supplyWallet.findUnique({ where: { id: WALLET_ID } });
+  if (existing) return existing;
+  return prismaTx.supplyWallet.create({
+    data: {
+      id: WALLET_ID,
+      currentBalance: 0,
+    },
+  });
 }
 
 /**
@@ -347,6 +371,193 @@ router.delete("/products/:id", async (req, res) => {
   } catch (e) {
     console.error("DELETE /api/supply/products/:id failed", e);
     if (e.code === "P2025") return res.status(404).json({ error: "Product not found" });
+    return res.status(500).json({ error: "internal server error" });
+  }
+});
+
+/**
+ * GET /api/supply/wallet
+ */
+router.get("/wallet", async (_req, res) => {
+  try {
+    const wallet = await prisma.supplyWallet.upsert({
+      where: { id: WALLET_ID },
+      update: {},
+      create: { id: WALLET_ID, currentBalance: 0 },
+    });
+    return res.json(wallet);
+  } catch (e) {
+    console.error("GET /api/supply/wallet failed", e);
+    return res.status(500).json({ error: "internal server error" });
+  }
+});
+
+/**
+ * PUT /api/supply/wallet
+ * body: { amount }
+ */
+router.put("/wallet", async (req, res) => {
+  try {
+    const amount = parseMoneyAmount(req.body?.amount, "amount");
+    const userId = Number(req.user?.id);
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const wallet = await ensureWallet(tx);
+      const nextBalance = Number(amount.toFixed(2));
+      const delta = Number((nextBalance - Number(wallet.currentBalance || 0)).toFixed(2));
+
+      const updatedWallet = await tx.supplyWallet.update({
+        where: { id: WALLET_ID },
+        data: { currentBalance: nextBalance },
+      });
+
+      await tx.supplyWalletTransaction.create({
+        data: {
+          delta,
+          balanceAfter: nextBalance,
+          reason: "ADMIN_SET_BALANCE",
+          createdByUserId: userId,
+        },
+      });
+
+      return updatedWallet;
+    });
+
+    return res.json(result);
+  } catch (e) {
+    console.error("PUT /api/supply/wallet failed", e);
+    if (e.message?.includes("amount")) {
+      return res.status(400).json({ error: e.message });
+    }
+    return res.status(500).json({ error: "internal server error" });
+  }
+});
+
+/**
+ * POST /api/supply/checkout
+ * body: {
+ *   items: [{ productId, qty }],
+ *   walletAmount: number,
+ *   transferAmount: number
+ * }
+ */
+router.post("/checkout", async (req, res) => {
+  try {
+    const userId = Number(req.user?.id);
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const itemsRaw = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (itemsRaw.length === 0) {
+      return res.status(400).json({ error: "items are required" });
+    }
+
+    const items = itemsRaw.map((item) => ({
+      productId: Number(item?.productId),
+      qty: Number(item?.qty),
+    }));
+    if (items.some((x) => !x.productId || Number.isNaN(x.productId) || !Number.isInteger(x.qty) || x.qty <= 0)) {
+      return res.status(400).json({ error: "items format is invalid" });
+    }
+
+    const walletAmount = parseMoneyAmount(req.body?.walletAmount ?? 0, "walletAmount");
+    const transferAmount = parseMoneyAmount(req.body?.transferAmount ?? 0, "transferAmount");
+
+    const result = await prisma.$transaction(async (tx) => {
+      const wallet = await ensureWallet(tx);
+      const productIds = [...new Set(items.map((x) => x.productId))];
+      const products = await tx.supplyProduct.findMany({
+        where: { id: { in: productIds }, isActive: true },
+      });
+      if (products.length !== productIds.length) {
+        throw new Error("Some products are missing or inactive");
+      }
+
+      const productMap = new Map(products.map((p) => [p.id, p]));
+      const orderItems = items.map((item) => {
+        const product = productMap.get(item.productId);
+        if (!product) {
+          throw new Error("Some products are missing or inactive");
+        }
+        const unitPrice = Number(product.price);
+        const lineTotal = Number((unitPrice * item.qty).toFixed(2));
+        return {
+          productId: item.productId,
+          qty: item.qty,
+          unitPrice,
+          lineTotal,
+        };
+      });
+      const totalAmount = Number(
+        orderItems.reduce((sum, line) => sum + line.lineTotal, 0).toFixed(2)
+      );
+      const paymentTotal = Number((walletAmount + transferAmount).toFixed(2));
+
+      if (!almostEqual(totalAmount, paymentTotal)) {
+        throw new Error("walletAmount + transferAmount must equal total amount");
+      }
+      if (walletAmount > Number(wallet.currentBalance || 0)) {
+        throw new Error("wallet balance is insufficient");
+      }
+
+      const order = await tx.supplyOrder.create({
+        data: {
+          totalAmount,
+          walletAmount,
+          transferAmount,
+          status: "COMPLETED",
+          createdByUserId: userId,
+          items: {
+            create: orderItems,
+          },
+        },
+        include: { items: true },
+      });
+
+      let nextBalance = Number(wallet.currentBalance || 0);
+      if (walletAmount > 0) {
+        nextBalance = Number((nextBalance - walletAmount).toFixed(2));
+        await tx.supplyWallet.update({
+          where: { id: WALLET_ID },
+          data: { currentBalance: nextBalance },
+        });
+        await tx.supplyWalletTransaction.create({
+          data: {
+            orderId: order.id,
+            delta: Number((-walletAmount).toFixed(2)),
+            balanceAfter: nextBalance,
+            reason: "CHECKOUT_WALLET_DEDUCTION",
+            createdByUserId: userId,
+          },
+        });
+      }
+
+      return {
+        orderId: order.id,
+        totalAmount,
+        walletAmount,
+        transferAmount,
+        walletBalance: nextBalance,
+      };
+    });
+
+    return res.status(201).json(result);
+  } catch (e) {
+    console.error("POST /api/supply/checkout failed", e);
+    if (
+      e.message?.includes("items") ||
+      e.message?.includes("walletAmount") ||
+      e.message?.includes("transferAmount") ||
+      e.message?.includes("wallet balance") ||
+      e.message?.includes("Some products") ||
+      e.message?.includes("must equal total amount")
+    ) {
+      return res.status(400).json({ error: e.message });
+    }
     return res.status(500).json({ error: "internal server error" });
   }
 });
