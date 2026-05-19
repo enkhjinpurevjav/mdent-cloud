@@ -134,6 +134,16 @@ export default function SupplyEshopPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [popupProduct, setPopupProduct] = useState<SupplyProduct | null>(null);
   const [error, setError] = useState("");
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutUseWallet, setCheckoutUseWallet] = useState(true);
+  const [checkoutUseTransfer, setCheckoutUseTransfer] = useState(true);
+  const [checkoutWalletInput, setCheckoutWalletInput] = useState("0");
+  const [checkoutTransferInput, setCheckoutTransferInput] = useState("0");
+  const [checkoutError, setCheckoutError] = useState("");
+  const [checkoutSuccess, setCheckoutSuccess] = useState("");
+  const [checkingOut, setCheckingOut] = useState(false);
 
   const loadCategories = async () => {
     try {
@@ -167,6 +177,21 @@ export default function SupplyEshopPage() {
     }
   };
 
+  const loadWallet = async () => {
+    setWalletLoading(true);
+    try {
+      const res = await fetch("/api/supply/wallet");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error((data && data.error) || "Хэтэвчийн үлдэгдэл ачаалж чадсангүй.");
+      setWalletBalance(Number(data?.currentBalance || 0));
+    } catch (e: any) {
+      setError(e.message || "Хэтэвчийн үлдэгдэл ачаалж чадсангүй.");
+      setWalletBalance(0);
+    } finally {
+      setWalletLoading(false);
+    }
+  };
+
   const loadCategoryProducts = async (categoryId: number) => {
     setCategoryLoading(true);
     try {
@@ -188,7 +213,7 @@ export default function SupplyEshopPage() {
 
   useEffect(() => {
     if (!canManage) return;
-    void Promise.all([loadCategories(), loadLatestProducts()]);
+    void Promise.all([loadCategories(), loadLatestProducts(), loadWallet()]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage]);
 
@@ -229,6 +254,77 @@ export default function SupplyEshopPage() {
 
   const showProducts = selectedCategoryId ? categoryProducts : latestProducts;
   const productsLoading = selectedCategoryId ? categoryLoading : latestLoading;
+
+  const openCheckout = () => {
+    const walletPart = Math.min(walletBalance, cartTotal);
+    const transferPart = Number((cartTotal - walletPart).toFixed(2));
+    setCheckoutUseWallet(walletPart > 0);
+    setCheckoutUseTransfer(true);
+    setCheckoutWalletInput(walletPart.toFixed(2));
+    setCheckoutTransferInput(transferPart.toFixed(2));
+    setCheckoutError("");
+    setCheckoutSuccess("");
+    setCheckoutOpen(true);
+  };
+
+  const submitCheckout = async () => {
+    const walletRaw = Number(checkoutWalletInput || "0");
+    const transferRaw = Number(checkoutTransferInput || "0");
+    const walletAmount = checkoutUseWallet ? walletRaw : 0;
+    const transferAmount = checkoutUseTransfer ? transferRaw : 0;
+
+    if (!checkoutUseWallet && !checkoutUseTransfer) {
+      setCheckoutError("Ядаж нэг төлбөрийн хэлбэр сонгоно уу.");
+      return;
+    }
+    if (!Number.isFinite(walletAmount) || walletAmount < 0) {
+      setCheckoutError("Хэтэвчийн дүн буруу байна.");
+      return;
+    }
+    if (!Number.isFinite(transferAmount) || transferAmount < 0) {
+      setCheckoutError("Шилжүүлгийн дүн буруу байна.");
+      return;
+    }
+    if (walletAmount > walletBalance) {
+      setCheckoutError("Хэтэвчийн дүн үлдэгдлээс их байж болохгүй.");
+      return;
+    }
+    const paymentTotal = Number((walletAmount + transferAmount).toFixed(2));
+    if (Math.abs(paymentTotal - cartTotal) >= 0.01) {
+      setCheckoutError("Төлбөрийн нийлбэр сагсны нийт дүнтэй тэнцүү байх ёстой.");
+      return;
+    }
+
+    setCheckingOut(true);
+    setCheckoutError("");
+    try {
+      const res = await fetch("/api/supply/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: cartItems.map((item) => ({
+            productId: item.product.id,
+            qty: item.qty,
+          })),
+          walletAmount,
+          transferAmount,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((data && data.error) || "Checkout хийхэд алдаа гарлаа.");
+      }
+      setWalletBalance(Number(data?.walletBalance || 0));
+      setCartItems([]);
+      setCheckoutOpen(false);
+      setCheckoutSuccess("Checkout амжилттай.");
+      setActiveTab("account");
+    } catch (e: any) {
+      setCheckoutError(e.message || "Checkout хийхэд алдаа гарлаа.");
+    } finally {
+      setCheckingOut(false);
+    }
+  };
 
   if (authLoading) {
     return (
@@ -459,7 +555,27 @@ export default function SupplyEshopPage() {
                   <Price value={cartTotal} />
                 </span>
               </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+                <button
+                  type="button"
+                  onClick={openCheckout}
+                  style={{
+                    border: "none",
+                    borderRadius: 8,
+                    background: "#0f766e",
+                    color: "white",
+                    padding: "8px 14px",
+                    cursor: "pointer",
+                    fontWeight: 600,
+                  }}
+                >
+                  Check out
+                </button>
+              </div>
             </>
+          )}
+          {checkoutSuccess && (
+            <div style={{ marginTop: 10, color: "#166534", fontSize: 13 }}>{checkoutSuccess}</div>
           )}
         </section>
       )}
@@ -483,6 +599,10 @@ export default function SupplyEshopPage() {
             </div>
             <div>
               <strong>Эрх:</strong> {me?.role || "-"}
+            </div>
+            <div>
+              <strong>Хэтэвчийн үлдэгдэл:</strong>{" "}
+              {walletLoading ? "Ачааллаж байна..." : <Price value={walletBalance} />}
             </div>
           </div>
         </section>
@@ -547,6 +667,115 @@ export default function SupplyEshopPage() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {checkoutOpen && (
+        <div
+          onClick={() => setCheckoutOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.4)",
+            zIndex: 90,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(520px, 100%)",
+              background: "white",
+              borderRadius: 12,
+              padding: 14,
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 10 }}>Checkout confirmation</h3>
+            <div style={{ marginBottom: 10, fontSize: 14 }}>
+              Нийт дүн: <strong><Price value={cartTotal} /></strong>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gap: 10,
+                border: "1px solid #e5e7eb",
+                borderRadius: 8,
+                padding: 10,
+              }}
+            >
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={checkoutUseWallet}
+                  onChange={(e) => setCheckoutUseWallet(e.target.checked)}
+                />
+                <span style={{ minWidth: 90 }}>Хэтэвч</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  disabled={!checkoutUseWallet}
+                  value={checkoutWalletInput}
+                  onChange={(e) => setCheckoutWalletInput(e.target.value)}
+                  style={{ width: 150, padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 6 }}
+                />
+                <span style={{ fontSize: 12, color: "#64748b" }}>
+                  (үлдэгдэл: <Price value={walletBalance} />)
+                </span>
+              </label>
+
+              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={checkoutUseTransfer}
+                  onChange={(e) => setCheckoutUseTransfer(e.target.checked)}
+                />
+                <span style={{ minWidth: 90 }}>Шилжүүлэг</span>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  disabled={!checkoutUseTransfer}
+                  value={checkoutTransferInput}
+                  onChange={(e) => setCheckoutTransferInput(e.target.value)}
+                  style={{ width: 150, padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 6 }}
+                />
+              </label>
+            </div>
+
+            {checkoutError && (
+              <div style={{ marginTop: 8, color: "#b91c1c", fontSize: 12 }}>
+                {checkoutError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
+              <button type="button" onClick={() => setCheckoutOpen(false)}>
+                Болих
+              </button>
+              <button
+                type="button"
+                onClick={submitCheckout}
+                disabled={checkingOut}
+                style={{
+                  border: "none",
+                  borderRadius: 8,
+                  background: "#0f766e",
+                  color: "white",
+                  padding: "8px 14px",
+                  cursor: checkingOut ? "default" : "pointer",
+                  opacity: checkingOut ? 0.7 : 1,
+                }}
+              >
+                {checkingOut ? "Хадгалж байна..." : "Баталгаажуулах"}
+              </button>
             </div>
           </div>
         </div>

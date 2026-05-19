@@ -80,6 +80,10 @@ export default function SupplyOthersPage() {
     isActive: true,
   });
   const [editImageUploading, setEditImageUploading] = useState(false);
+  const [walletAmountInput, setWalletAmountInput] = useState("");
+  const [walletLoading, setWalletLoading] = useState(false);
+  const [walletSaving, setWalletSaving] = useState(false);
+  const [walletMessage, setWalletMessage] = useState("");
 
   const loadCategories = async () => {
     setCatLoading(true);
@@ -122,9 +126,27 @@ export default function SupplyOthersPage() {
     }
   };
 
+  const loadWallet = async () => {
+    setWalletLoading(true);
+    setWalletMessage("");
+    try {
+      const res = await fetch("/api/supply/wallet");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((data && data.error) || "Хэтэвчийн үлдэгдэл ачаалж чадсангүй.");
+      }
+      setWalletAmountInput(String(Number(data?.currentBalance || 0)));
+    } catch (e: any) {
+      setWalletMessage(e.message || "Хэтэвчийн үлдэгдэл ачаалж чадсангүй.");
+    } finally {
+      setWalletLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadCategories();
     void loadProducts();
+    void loadWallet();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -417,6 +439,35 @@ export default function SupplyOthersPage() {
       setProdError(e.message || "Зураг upload алдаа.");
     } finally {
       setEditImageUploading(false);
+    }
+  };
+
+  const saveWalletBalance = async () => {
+    const amount = Number(walletAmountInput);
+    if (!Number.isFinite(amount) || amount < 0) {
+      setWalletMessage("Үлдэгдэл 0 эсвэл түүнээс дээш тоо байна.");
+      return;
+    }
+    setWalletSaving(true);
+    setWalletMessage("");
+    try {
+      const res = await fetch("/api/supply/wallet", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((data && data.error) || "Хэтэвчийн үлдэгдэл хадгалах үед алдаа гарлаа.");
+      }
+      setWalletAmountInput(String(Number(data?.currentBalance || 0)));
+      setWalletMessage("Амжилттай хадгаллаа.");
+    } catch (e: any) {
+      setWalletMessage(
+        e.message || "Хэтэвчийн үлдэгдэл хадгалах үед алдаа гарлаа."
+      );
+    } finally {
+      setWalletSaving(false);
     }
   };
 
@@ -812,6 +863,61 @@ export default function SupplyOthersPage() {
                 ))}
               </div>
             </div>
+          </div>
+
+          <div
+            style={{
+              border: "1px solid #e5e7eb",
+              borderRadius: 8,
+              padding: 10,
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>
+              Хэтэвчийн үлдэгдэл (Set absolute balance)
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                type="number"
+                min={0}
+                value={walletAmountInput}
+                onChange={(e) => setWalletAmountInput(e.target.value)}
+                placeholder="Ж: 100000"
+                style={{
+                  width: 220,
+                  padding: "6px 8px",
+                  borderRadius: 6,
+                  border: "1px solid #d1d5db",
+                }}
+              />
+              <button
+                type="button"
+                onClick={saveWalletBalance}
+                disabled={walletLoading || walletSaving}
+                style={{
+                  borderRadius: 6,
+                  border: "none",
+                  background: "#2563eb",
+                  color: "white",
+                  padding: "6px 12px",
+                  cursor: walletLoading || walletSaving ? "default" : "pointer",
+                  opacity: walletLoading || walletSaving ? 0.7 : 1,
+                }}
+              >
+                {walletSaving ? "Хадгалж байна..." : "Хадгалах"}
+              </button>
+            </div>
+            {walletMessage && (
+              <div
+                style={{
+                  marginTop: 8,
+                  fontSize: 12,
+                  color: walletMessage.includes("Амжилттай") ? "#166534" : "#b91c1c",
+                }}
+              >
+                {walletMessage}
+              </div>
+            )}
           </div>
 
           {prodLoading ? (
