@@ -10,6 +10,10 @@ import * as qpayService from "../services/qpayService.js";
 import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
 import { ensureOnlineAppointmentForBooking } from "../services/onlineBookingAppointmentSync.js";
 import { ensureOnlineBookingPatientForPayment } from "../services/onlineBookingPatientSync.js";
+import {
+  isDateBeforeTodayInUlaanbaatar,
+  isSlotInPastOrCurrentForDate,
+} from "../utils/onlineBookingTime.js";
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -492,6 +496,7 @@ router.get("/doctor-available-slots", async (req, res) => {
       appointmentFallbackMinutes: durationMinutes || DEFAULT_APPOINTMENT_DURATION_MINUTES,
     });
     const availableSlots = allSlots.filter((slot) => {
+      if (isSlotInPastOrCurrentForDate(day, slot)) return false;
       const slotEnd = addMinutes(slot, durationMinutes);
       return !isSlotBusy(slot, slotEnd, busyRanges);
     });
@@ -894,6 +899,14 @@ router.post("/online-booking/drafts/:draftId/init-payment", async (req, res) => 
         error: "Booking outside doctor's working hours",
         scheduleStart: schedule.startTime,
         scheduleEnd: schedule.endTime,
+      });
+    }
+    if (
+      isDateBeforeTodayInUlaanbaatar(draft.selectedDate)
+      || isSlotInPastOrCurrentForDate(draft.selectedDate, startTime)
+    ) {
+      return res.status(400).json({
+        error: "Cannot book past time slots",
       });
     }
 
