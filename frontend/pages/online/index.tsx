@@ -204,6 +204,8 @@ export default function OnlineBookingPage() {
   const [holdLoading, setHoldLoading] = useState(false);
   const [holdError, setHoldError] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("PENDING");
+  const [paymentCheckLoading, setPaymentCheckLoading] = useState(false);
+  const [paymentCheckMessage, setPaymentCheckMessage] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(600); // seconds
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -334,6 +336,30 @@ export default function OnlineBookingPage() {
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
+  const checkPaymentStatusOnce = useCallback(async (draftIdForPolling: number): Promise<"PAID" | "EXPIRED" | "PENDING"> => {
+    const res = await fetch(`/api/public/online-booking/drafts/${draftIdForPolling}/payment-status`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || "Төлбөр шалгах үед алдаа гарлаа.");
+    }
+
+    if (data.status === "PAID") {
+      setPaymentStatus("PAID");
+      stopPolling();
+      setStep(6);
+      return "PAID";
+    }
+
+    if (data.status === "EXPIRED" || data.status === "CANCELLED") {
+      setPaymentStatus("EXPIRED");
+      stopPolling();
+      setStep(6);
+      return "EXPIRED";
+    }
+
+    return "PENDING";
+  }, [stopPolling]);
+
   const startPolling = useCallback((draftIdForPolling: number, expiresAt: Date) => {
     const secondsLeft = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
     setTimeLeft(secondsLeft);
@@ -350,24 +376,12 @@ export default function OnlineBookingPage() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/public/online-booking/drafts/${draftIdForPolling}/payment-status`);
-        const data = await res.json();
-        if (data.status === "PAID") {
-          setPaymentStatus("PAID");
-          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-          setStep(6);
-        } else if (data.status === "EXPIRED" || data.status === "CANCELLED") {
-          setPaymentStatus("EXPIRED");
-          if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-          if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-          setStep(6);
-        }
+        await checkPaymentStatusOnce(draftIdForPolling);
       } catch (_e) {
         // ignore poll errors; will retry
       }
     }, 5000);
-  }, []); // State setters (setPaymentStatus, setStep, setTimeLeft) are stable refs from useState; refs are mutable objects excluded from deps
+  }, [checkPaymentStatusOnce]); // State setters are stable refs from useState; refs are mutable objects excluded from deps
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -489,6 +503,7 @@ export default function OnlineBookingPage() {
       });
       setPaymentStatus("PENDING");
       setStep(5);
+      setPaymentCheckMessage(null);
       if (typeof data.expiresAt === "string") {
         setDraftExpiresAt(data.expiresAt);
       }
@@ -506,6 +521,8 @@ export default function OnlineBookingPage() {
     setHoldError(null);
     setBookingSummary(null);
     setPaymentStatus("PENDING");
+    setPaymentCheckLoading(false);
+    setPaymentCheckMessage(null);
     setGrid(null);
     setSelectedDoctor(null);
     setDoctorSlots([]);
@@ -1049,6 +1066,36 @@ export default function OnlineBookingPage() {
               style={{ width: 200, height: 200, border: "1px solid #e5e7eb", borderRadius: 8 }}
             />
             <p style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>QPay QR кодыг уншуулна уу</p>
+          </div>
+        )}
+
+        {draftId && (
+          <div style={{ textAlign: "center", marginBottom: 14 }}>
+            <button
+              type="button"
+              style={{ ...BTN_PRIMARY, background: "#2563eb", padding: "10px 18px", fontSize: 14 }}
+              disabled={paymentCheckLoading}
+              onClick={async () => {
+                if (!draftId) return;
+                setPaymentCheckLoading(true);
+                setPaymentCheckMessage(null);
+                try {
+                  const result = await checkPaymentStatusOnce(draftId);
+                  if (result === "PENDING") {
+                    setPaymentCheckMessage("Төлбөр бүртгэгдээгүй байна. Дахин шалгана уу.");
+                  }
+                } catch (err) {
+                  setPaymentCheckMessage(err instanceof Error ? err.message : "Төлбөр шалгах үед алдаа гарлаа.");
+                } finally {
+                  setPaymentCheckLoading(false);
+                }
+              }}
+            >
+              {paymentCheckLoading ? "Шалгаж байна..." : "Төлбөр шалгах"}
+            </button>
+            {paymentCheckMessage && (
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: "#6b7280" }}>{paymentCheckMessage}</p>
+            )}
           </div>
         )}
 

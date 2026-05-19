@@ -93,6 +93,7 @@ function isValidPhone(phoneRaw) {
 
 async function getBusyRangesForDoctor({ branchId, doctorId, day, appointmentFallbackMinutes }) {
   const { start: dayStart, end: dayEnd } = getDayBounds(day);
+  const now = new Date();
   const [bookings, appointments] = await Promise.all([
     prisma.booking.findMany({
       where: {
@@ -101,7 +102,17 @@ async function getBusyRangesForDoctor({ branchId, doctorId, day, appointmentFall
         date: day,
         status: { in: ONLINE_ACTIVE_BOOKING_STATUSES },
       },
-      select: { startTime: true, endTime: true },
+      select: {
+        status: true,
+        startTime: true,
+        endTime: true,
+        deposit: {
+          select: {
+            status: true,
+            holdExpiresAt: true,
+          },
+        },
+      },
     }),
     prisma.appointment.findMany({
       where: {
@@ -117,6 +128,14 @@ async function getBusyRangesForDoctor({ branchId, doctorId, day, appointmentFall
   const ranges = [];
 
   for (const booking of bookings) {
+    // Online held bookings should only block slots while hold is valid.
+    if (booking.status === BookingStatus.ONLINE_HELD) {
+      const deposit = booking.deposit;
+      if (!deposit) continue;
+      if (deposit.status === "EXPIRED" || deposit.status === "CANCELLED") continue;
+      if (deposit.holdExpiresAt && deposit.holdExpiresAt <= now) continue;
+    }
+
     const startMinutes = timeToMinutes(booking.startTime);
     const endMinutes = timeToMinutes(booking.endTime);
     if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) continue;
