@@ -839,6 +839,9 @@ model User {
   foodOrders         FoodOrder[] @relation("FoodOrderUser")
   foodOrdersUpdated  FoodOrder[] @relation("FoodOrderUpdatedBy")
 
+  supplyOrders             SupplyOrder[]
+  supplyWalletTransactions SupplyWalletTransaction[]
+
   createdPatients   Patient[] @relation("PatientCreator")
   updatedPatients   Patient[] @relation("PatientUpdater")
 
@@ -1424,6 +1427,93 @@ model Product {
 
   @@index([branchId, isActive])
   @@index([categoryId])
+}
+
+model SupplyCategory {
+  id        Int      @id @default(autoincrement())
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products SupplyProduct[]
+
+  @@unique([name])
+}
+
+model SupplyProduct {
+  id          Int      @id @default(autoincrement())
+  categoryId  Int
+  code        String?
+  name        String
+  price       Float
+  description String?
+  imagePaths  String[] @default([])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category SupplyCategory @relation(fields: [categoryId], references: [id])
+  orderItems SupplyOrderItem[]
+
+  @@index([isActive])
+  @@index([categoryId])
+}
+
+model SupplyWallet {
+  id             Int      @id @default(1)
+  currentBalance Float    @default(0)
+  updatedAt      DateTime @updatedAt
+}
+
+model SupplyOrder {
+  id             Int      @id @default(autoincrement())
+  totalAmount    Float
+  walletAmount   Float
+  transferAmount Float
+  status         String   @default("COMPLETED")
+  createdByUserId Int
+  createdAt      DateTime @default(now())
+
+  createdByUser User             @relation(fields: [createdByUserId], references: [id])
+  items         SupplyOrderItem[]
+  walletTransactions SupplyWalletTransaction[]
+
+  @@index([createdByUserId, createdAt])
+  @@index([createdAt])
+}
+
+model SupplyOrderItem {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  productId   Int
+  qty         Int
+  unitPrice   Float
+  lineTotal   Float
+  createdAt   DateTime @default(now())
+
+  order       SupplyOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     SupplyProduct @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model SupplyWalletTransaction {
+  id          Int      @id @default(autoincrement())
+  orderId     Int?
+  delta       Float
+  balanceAfter Float
+  reason      String
+  createdByUserId Int
+  createdAt   DateTime @default(now())
+
+  order       SupplyOrder? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdByUser User       @relation(fields: [createdByUserId], references: [id])
+
+  @@index([orderId])
+  @@index([createdByUserId, createdAt])
+  @@index([createdAt])
 }
 
 model ProductStockMovement {

@@ -142,6 +142,13 @@ const announcementImageUploader = makeUploader({
   mimeToExt: IMAGE_MIME_TO_EXT,
   fallbackExt: ".jpg",
 });
+const productImageUploader = makeUploader({
+  subDir: "product-images",
+  allowedTypes: IMAGE_ALLOWED_TYPES,
+  maxSize: IMAGE_MAX_SIZE,
+  mimeToExt: IMAGE_MIME_TO_EXT,
+  fallbackExt: ".jpg",
+});
 const announcementAttachmentUploader = makeUploader({
   subDir: "announcements/attachments",
   allowedTypes: ANNOUNCEMENT_ATTACHMENT_ALLOWED_TYPES,
@@ -153,6 +160,13 @@ const router = Router();
 
 function requireAnnouncementManager(req, res, next) {
   if (req.user?.role === "hr" || req.user?.role === "super_admin") {
+    return next();
+  }
+  return res.status(403).json({ error: "Forbidden. Insufficient role." });
+}
+
+function requireSupplyManager(req, res, next) {
+  if (req.user?.role === "admin" || req.user?.role === "super_admin") {
     return next();
   }
   return res.status(403).json({ error: "Forbidden. Insufficient role." });
@@ -177,6 +191,12 @@ router.post(
   "/announcement-image",
   requireAnnouncementManager,
   ...uploadHandler(announcementImageUploader, "/media/announcements/images", 2)
+);
+
+router.post(
+  "/product-image",
+  requireSupplyManager,
+  ...uploadHandler(productImageUploader, "/media/product-images", 2)
 );
 
 router.post(

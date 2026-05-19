@@ -189,7 +189,17 @@ const navItems: NavItem[] = [
     children: [{ label: "Салбарууд", href: "/branches", icon: "🏥" }],
   },
 
-  // 10. Үндсэн тайлан
+  // 10. Хангамж
+  {
+    label: "Хангамж",
+    icon: "🛒",
+    children: [
+      { label: "e-Shop", href: "/supply/eshop", icon: "🛍️" },
+      { label: "Бусад", href: "/supply/others", icon: "📦" },
+    ],
+  },
+
+  // 11. Үндсэн тайлан
   {
     label: "Үндсэн тайлан",
     icon: "📈",
@@ -240,7 +250,10 @@ function getVisibleNavItems(role?: string): NavItem[] {
   if (role === "sterilization") {
     return sterilizationPortalNavItems;
   }
-  return navItems;
+  if (role === "admin" || role === "super_admin") {
+    return navItems;
+  }
+  return navItems.filter((item) => item.label !== "Хангамж");
 }
 
 export default function AdminLayout({ children, wide, hideSidebar }: Props) {
