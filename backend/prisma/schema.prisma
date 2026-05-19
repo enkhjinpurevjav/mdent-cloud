@@ -1953,6 +1953,20 @@ model QPayIntent {
   @@index([objectType, objectId])
 }
 
+model QPayAuthToken {
+  id          Int      @id @default(autoincrement())
+  cacheKey    String   @unique
+  environment String
+  clientId    String
+  accessToken String   @db.Text
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([environment, clientId])
+  @@index([expiresAt])
+}
+
 // ==========================================================
 // SETTINGS (Global Finance Configuration)
 // ==========================================================
