@@ -843,7 +843,7 @@ export default function OnlineBookingPage() {
           {selectedCategory?.label} · {selectedDate} · {grid?.durationMinutes ?? selectedCategory?.durationMinutes} минут
         </p>
         <p style={{ color: "#6b7280", fontSize: 12, marginBottom: 16 }}>
-          Эмчээ сонгоод гарч ирэх цонхоноос зөвхөн боломжтой цагуудаас сонгон захиална уу.
+          Эмч сонгоод гарч ирэх цонхноос зөвхөн боломжтой цагуудаас сонгон захиална уу.
         </p>
 
         {loadingGrid && <p style={{ color: "#6b7280" }}>Ачааллаж байна...</p>}
