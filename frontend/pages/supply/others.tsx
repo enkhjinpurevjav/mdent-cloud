@@ -43,7 +43,7 @@ async function uploadProductImage(file: File): Promise<string> {
 
 export default function SupplyOthersPage() {
   const { me, loading: authLoading } = useAuth();
-  const canManage = me?.role === "admin";
+  const canManage = me?.role === "admin" || me?.role === "super_admin";
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState<string>("");

@@ -247,7 +247,7 @@ function getVisibleNavItems(role?: string): NavItem[] {
   if (role === "sterilization") {
     return sterilizationPortalNavItems;
   }
-  if (role === "admin") {
+  if (role === "admin" || role === "super_admin") {
     return navItems;
   }
   return navItems.filter((item) => item.label !== "Хангамж");
