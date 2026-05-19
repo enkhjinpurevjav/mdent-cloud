@@ -142,6 +142,13 @@ const announcementImageUploader = makeUploader({
   mimeToExt: IMAGE_MIME_TO_EXT,
   fallbackExt: ".jpg",
 });
+const productImageUploader = makeUploader({
+  subDir: "product-images",
+  allowedTypes: IMAGE_ALLOWED_TYPES,
+  maxSize: IMAGE_MAX_SIZE,
+  mimeToExt: IMAGE_MIME_TO_EXT,
+  fallbackExt: ".jpg",
+});
 const announcementAttachmentUploader = makeUploader({
   subDir: "announcements/attachments",
   allowedTypes: ANNOUNCEMENT_ATTACHMENT_ALLOWED_TYPES,
@@ -177,6 +184,11 @@ router.post(
   "/announcement-image",
   requireAnnouncementManager,
   ...uploadHandler(announcementImageUploader, "/media/announcements/images", 2)
+);
+
+router.post(
+  "/product-image",
+  ...uploadHandler(productImageUploader, "/media/product-images", 2)
 );
 
 router.post(

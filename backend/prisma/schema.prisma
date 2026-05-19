@@ -1412,6 +1412,7 @@ model Product {
   price       Float
   isActive    Boolean @default(true)
   description String?
+  imagePaths  Json?
 
   branch   Branch          @relation(fields: [branchId], references: [id])
   category ProductCategory @relation(fields: [categoryId], references: [id])
