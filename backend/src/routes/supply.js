@@ -5,7 +5,7 @@ import { requireRole } from "../middleware/auth.js";
 const router = Router();
 const MAX_PRODUCT_IMAGES = 3;
 
-router.use(requireRole("admin"));
+router.use(requireRole("admin", "super_admin"));
 
 function parseImagePaths(value) {
   if (value == null) return [];
