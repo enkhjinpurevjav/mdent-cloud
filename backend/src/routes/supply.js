@@ -4,6 +4,7 @@ import { requireRole } from "../middleware/auth.js";
 
 const router = Router();
 const MAX_PRODUCT_IMAGES = 3;
+const MAX_LIMIT = 100;
 
 router.use(requireRole("admin", "super_admin"));
 
@@ -24,19 +25,31 @@ function parseImagePaths(value) {
   return cleaned;
 }
 
+function parseLimit(limitRaw) {
+  if (limitRaw == null) return null;
+  const n = Number(limitRaw);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new Error("limit must be a positive integer");
+  }
+  return Math.min(n, MAX_LIMIT);
+}
+
+async function ensureCategoryExists(categoryId) {
+  const category = await prisma.supplyCategory.findUnique({
+    where: { id: categoryId },
+    select: { id: true },
+  });
+  return Boolean(category);
+}
+
 /**
- * GET /api/supply/categories?branchId=1&includeInactive=true
+ * GET /api/supply/categories?includeInactive=true
  */
 router.get("/categories", async (req, res) => {
   try {
-    const branchId = Number(req.query.branchId);
     const includeInactive = req.query.includeInactive === "true";
-    if (!branchId || Number.isNaN(branchId)) {
-      return res.status(400).json({ error: "branchId is required" });
-    }
-
     const categories = await prisma.supplyCategory.findMany({
-      where: includeInactive ? { branchId } : { branchId, isActive: true },
+      where: includeInactive ? undefined : { isActive: true },
       include: {
         _count: {
           select: { products: true },
@@ -44,7 +57,6 @@ router.get("/categories", async (req, res) => {
       },
       orderBy: { name: "asc" },
     });
-
     return res.json(categories);
   } catch (e) {
     console.error("GET /api/supply/categories failed", e);
@@ -54,28 +66,23 @@ router.get("/categories", async (req, res) => {
 
 /**
  * POST /api/supply/categories
- * body: { branchId, name }
+ * body: { name }
  */
 router.post("/categories", async (req, res) => {
   try {
-    const branchId = Number(req.body?.branchId);
     const name = String(req.body?.name || "").trim();
-
-    if (!branchId || Number.isNaN(branchId)) {
-      return res.status(400).json({ error: "branchId is required" });
-    }
     if (!name) {
       return res.status(400).json({ error: "name is required" });
     }
 
     const created = await prisma.supplyCategory.create({
-      data: { branchId, name, isActive: true },
+      data: { name, isActive: true },
     });
     return res.status(201).json(created);
   } catch (e) {
     console.error("POST /api/supply/categories failed", e);
     if (e.code === "P2002") {
-      return res.status(400).json({ error: "Category name must be unique per branch" });
+      return res.status(400).json({ error: "Category name must be unique" });
     }
     return res.status(500).json({ error: "internal server error" });
   }
@@ -100,7 +107,7 @@ router.put("/categories/:id", async (req, res) => {
   } catch (e) {
     console.error("PUT /api/supply/categories/:id failed", e);
     if (e.code === "P2025") return res.status(404).json({ error: "Category not found" });
-    if (e.code === "P2002") return res.status(400).json({ error: "Category name must be unique per branch" });
+    if (e.code === "P2002") return res.status(400).json({ error: "Category name must be unique" });
     return res.status(500).json({ error: "internal server error" });
   }
 });
@@ -163,20 +170,17 @@ router.delete("/categories/:id", async (req, res) => {
 });
 
 /**
- * GET /api/supply/products?branchId=1&categoryId=2&q=abc&onlyActive=true
+ * GET /api/supply/products?categoryId=2&q=abc&onlyActive=true&sort=newest&limit=10
  */
 router.get("/products", async (req, res) => {
   try {
-    const branchId = Number(req.query.branchId);
     const categoryId = req.query.categoryId ? Number(req.query.categoryId) : null;
     const q = String(req.query.q || "").trim();
     const onlyActive = req.query.onlyActive === "true";
+    const sort = String(req.query.sort || "").trim().toLowerCase();
+    const limit = parseLimit(req.query.limit);
 
-    if (!branchId || Number.isNaN(branchId)) {
-      return res.status(400).json({ error: "branchId is required" });
-    }
-
-    const where = { branchId };
+    const where = {};
     if (onlyActive) where.isActive = true;
     if (categoryId && !Number.isNaN(categoryId)) where.categoryId = categoryId;
     if (q) {
@@ -186,36 +190,29 @@ router.get("/products", async (req, res) => {
       ];
     }
 
+    const orderBy = sort === "newest" ? { createdAt: "desc" } : { name: "asc" };
     const products = await prisma.supplyProduct.findMany({
       where,
       include: { category: true },
-      orderBy: { name: "asc" },
+      orderBy,
+      ...(limit ? { take: limit } : {}),
     });
-
     return res.json(products);
   } catch (e) {
     console.error("GET /api/supply/products failed", e);
+    if (e.message?.includes("limit")) {
+      return res.status(400).json({ error: e.message });
+    }
     return res.status(500).json({ error: "internal server error" });
   }
 });
 
-async function ensureCategoryInBranch(categoryId, branchId) {
-  const category = await prisma.supplyCategory.findUnique({
-    where: { id: categoryId },
-    select: { id: true, branchId: true },
-  });
-  if (!category) return { ok: false, error: "Category not found" };
-  if (category.branchId !== branchId) return { ok: false, error: "Category branch mismatch" };
-  return { ok: true };
-}
-
 /**
  * POST /api/supply/products
- * body: { branchId, categoryId, name, code?, price, description?, imagePaths?, isActive? }
+ * body: { categoryId, name, code?, price, description?, imagePaths?, isActive? }
  */
 router.post("/products", async (req, res) => {
   try {
-    const branchId = Number(req.body?.branchId);
     const categoryId = Number(req.body?.categoryId);
     const name = String(req.body?.name || "").trim();
     const code = req.body?.code != null ? String(req.body.code).trim() : null;
@@ -224,19 +221,17 @@ router.post("/products", async (req, res) => {
       req.body?.description != null ? String(req.body.description).trim() : null;
     const imagePaths = parseImagePaths(req.body?.imagePaths);
 
-    if (!branchId || Number.isNaN(branchId)) return res.status(400).json({ error: "branchId is required" });
     if (!categoryId || Number.isNaN(categoryId)) return res.status(400).json({ error: "categoryId is required" });
     if (!name) return res.status(400).json({ error: "name is required" });
     if (Number.isNaN(price) || price < 0) return res.status(400).json({ error: "price must be >= 0" });
 
-    const categoryCheck = await ensureCategoryInBranch(categoryId, branchId);
-    if (!categoryCheck.ok) {
-      return res.status(400).json({ error: categoryCheck.error });
+    const categoryExists = await ensureCategoryExists(categoryId);
+    if (!categoryExists) {
+      return res.status(400).json({ error: "Category not found" });
     }
 
     const created = await prisma.supplyProduct.create({
       data: {
-        branchId,
         categoryId,
         name,
         code: code || null,
@@ -247,7 +242,6 @@ router.post("/products", async (req, res) => {
       },
       include: { category: true },
     });
-
     return res.status(201).json(created);
   } catch (e) {
     console.error("POST /api/supply/products failed", e);
@@ -269,7 +263,7 @@ router.put("/products/:id", async (req, res) => {
 
     const existing = await prisma.supplyProduct.findUnique({
       where: { id },
-      select: { id: true, branchId: true },
+      select: { id: true },
     });
     if (!existing) return res.status(404).json({ error: "Product not found" });
 
@@ -286,9 +280,9 @@ router.put("/products/:id", async (req, res) => {
     if (!name) return res.status(400).json({ error: "name is required" });
     if (Number.isNaN(price) || price < 0) return res.status(400).json({ error: "price must be >= 0" });
 
-    const categoryCheck = await ensureCategoryInBranch(categoryId, existing.branchId);
-    if (!categoryCheck.ok) {
-      return res.status(400).json({ error: categoryCheck.error });
+    const categoryExists = await ensureCategoryExists(categoryId);
+    if (!categoryExists) {
+      return res.status(400).json({ error: "Category not found" });
     }
 
     const updated = await prisma.supplyProduct.update({
@@ -304,7 +298,6 @@ router.put("/products/:id", async (req, res) => {
       },
       include: { category: true },
     });
-
     return res.json(updated);
   } catch (e) {
     console.error("PUT /api/supply/products/:id failed", e);

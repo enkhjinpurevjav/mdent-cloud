@@ -193,7 +193,10 @@ const navItems: NavItem[] = [
   {
     label: "Хангамж",
     icon: "🛒",
-    children: [{ label: "Бусад", href: "/supply/others", icon: "📦" }],
+    children: [
+      { label: "e-Shop", href: "/supply/eshop", icon: "🛍️" },
+      { label: "Бусад", href: "/supply/others", icon: "📦" },
+    ],
   },
 
   // 11. Үндсэн тайлан

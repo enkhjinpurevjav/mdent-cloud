@@ -1,11 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../../contexts/AuthContext";
-
-type Branch = { id: number; name: string };
 
 type Category = {
   id: number;
-  branchId: number;
   name: string;
   isActive: boolean;
   _count?: { products: number };
@@ -13,7 +10,6 @@ type Category = {
 
 type ProductRow = {
   id: number;
-  branchId: number;
   categoryId: number;
   name: string;
   code: string | null;
@@ -44,9 +40,6 @@ async function uploadProductImage(file: File): Promise<string> {
 export default function SupplyOthersPage() {
   const { me, loading: authLoading } = useAuth();
   const canManage = me?.role === "admin" || me?.role === "super_admin";
-
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [branchId, setBranchId] = useState<string>("");
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [catLoading, setCatLoading] = useState(false);
@@ -88,30 +81,11 @@ export default function SupplyOthersPage() {
   });
   const [editImageUploading, setEditImageUploading] = useState(false);
 
-  const selectedBranchIdNum = useMemo(() => Number(branchId), [branchId]);
-
-  useEffect(() => {
-    fetch("/api/branches")
-      .then((r) => r.json())
-      .then((data) => {
-        const list = Array.isArray(data) ? data : [];
-        setBranches(list);
-        if (!branchId && list.length) {
-          setBranchId(String(list[0].id));
-        }
-      })
-      .catch(() => setBranches([]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const loadCategories = async () => {
-    if (!selectedBranchIdNum || Number.isNaN(selectedBranchIdNum)) return;
     setCatLoading(true);
     setCatError("");
     try {
-      const res = await fetch(
-        `/api/supply/categories?branchId=${selectedBranchIdNum}&includeInactive=true`
-      );
+      const res = await fetch("/api/supply/categories?includeInactive=true");
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error((data && data.error) || "Ангиллын жагсаалт ачаалж чадсангүй.");
@@ -126,12 +100,10 @@ export default function SupplyOthersPage() {
   };
 
   const loadProducts = async () => {
-    if (!selectedBranchIdNum || Number.isNaN(selectedBranchIdNum)) return;
     setProdLoading(true);
     setProdError("");
     try {
       const params = new URLSearchParams();
-      params.set("branchId", String(selectedBranchIdNum));
       if (categoryFilterId) params.set("categoryId", categoryFilterId);
       if (productQuery.trim()) params.set("q", productQuery.trim());
       if (!showArchivedProducts) params.set("onlyActive", "true");
@@ -151,23 +123,17 @@ export default function SupplyOthersPage() {
   };
 
   useEffect(() => {
-    if (!selectedBranchIdNum || Number.isNaN(selectedBranchIdNum)) return;
     void loadCategories();
     void loadProducts();
-    setCategoryFilterId("");
-    setProductQuery("");
-    setNewProduct((prev) => ({ ...prev, categoryId: "" }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBranchIdNum]);
+  }, []);
 
   useEffect(() => {
-    if (!selectedBranchIdNum || Number.isNaN(selectedBranchIdNum)) return;
     void loadProducts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showArchivedProducts, categoryFilterId]);
 
   const createCategory = async () => {
-    if (!selectedBranchIdNum || Number.isNaN(selectedBranchIdNum)) return;
     const name = newCategoryName.trim();
     if (!name) return;
 
@@ -175,7 +141,7 @@ export default function SupplyOthersPage() {
       const res = await fetch("/api/supply/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branchId: selectedBranchIdNum, name }),
+        body: JSON.stringify({ name }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -252,7 +218,6 @@ export default function SupplyOthersPage() {
   };
 
   const createProduct = async () => {
-    if (!selectedBranchIdNum || Number.isNaN(selectedBranchIdNum)) return;
     const categoryIdNum = Number(newProduct.categoryId);
     const name = newProduct.name.trim();
     const code = newProduct.code.trim();
@@ -281,7 +246,6 @@ export default function SupplyOthersPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          branchId: selectedBranchIdNum,
           categoryId: categoryIdNum,
           name,
           code: code || null,
@@ -306,6 +270,7 @@ export default function SupplyOthersPage() {
       setCategoryFilterId("");
       setProductQuery("");
       await loadProducts();
+      await loadCategories();
     } catch (e: any) {
       setProdError(e.message || "Бараа нэмэхэд алдаа гарлаа.");
     }
@@ -368,6 +333,7 @@ export default function SupplyOthersPage() {
       }
       setEditingProductId(null);
       await loadProducts();
+      await loadCategories();
     } catch (e: any) {
       setProdError(e.message || "Бараа засахад алдаа гарлаа.");
     }
@@ -402,6 +368,7 @@ export default function SupplyOthersPage() {
           setEditingProductId(null);
         }
         await loadProducts();
+        await loadCategories();
         return;
       }
       const data = await res.json().catch(() => null);
@@ -485,31 +452,8 @@ export default function SupplyOthersPage() {
     >
       <h1 style={{ fontSize: 22, margin: "0 0 12px" }}>Хангамж - Бусад</h1>
       <p style={{ margin: "0 0 16px", color: "#6b7280", fontSize: 13 }}>
-        Ангилал үүсгэх, бараа бүртгэх, үнэ/тайлбар/зураг удирдах, мөн архивлах болон устгах.
+        Нэгдсэн ангилал, барааны мастер бүртгэл (салбар хамааралгүй).
       </p>
-
-      <div
-        style={{
-          marginBottom: 12,
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
-        <label style={{ fontSize: 13 }}>Салбар:</label>
-        <select
-          value={branchId}
-          onChange={(e) => setBranchId(e.target.value)}
-          style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid #d1d5db" }}
-        >
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
-      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 12 }}>
         <section

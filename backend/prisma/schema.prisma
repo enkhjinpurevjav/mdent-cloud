@@ -207,8 +207,6 @@ model Branch {
   // ✅ ADD THESE TWO LINES (back-relations)
   productCategories     ProductCategory[]
   productStockMovements ProductStockMovement[]
-  supplyCategories      SupplyCategory[]
-  supplyProducts        SupplyProduct[]
 
   // NEW: invoices created in this branch
   invoices Invoice[]
@@ -1430,22 +1428,18 @@ model Product {
 
 model SupplyCategory {
   id        Int      @id @default(autoincrement())
-  branchId  Int
   name      String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  branch   Branch         @relation(fields: [branchId], references: [id])
   products SupplyProduct[]
 
-  @@unique([branchId, name])
-  @@index([branchId])
+  @@unique([name])
 }
 
 model SupplyProduct {
   id          Int      @id @default(autoincrement())
-  branchId    Int
   categoryId  Int
   code        String?
   name        String
@@ -1456,10 +1450,9 @@ model SupplyProduct {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  branch   Branch         @relation(fields: [branchId], references: [id])
   category SupplyCategory @relation(fields: [categoryId], references: [id])
 
-  @@index([branchId, isActive])
+  @@index([isActive])
   @@index([categoryId])
 }
 
