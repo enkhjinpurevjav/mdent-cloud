@@ -33,6 +33,7 @@ import bartersRouter from "./routes/barters.js";
 import giftCardsRouter from "./routes/giftcards.js";
 import reportsPatientBalancesRouter from "./routes/reports-patient-balances.js";
 import inventoryRouter from "./routes/inventory.js";
+import supplyRouter from "./routes/supply.js";
 import staffIncomeSettingsRouter from "./routes/admin/staffIncomeSettings.js";
 import doctorDashboardRouter from "./routes/admin/doctorDashboard.js";
 
@@ -310,6 +311,7 @@ app.use("/api/reports", reportsPatientBalancesRouter);
 app.use("/api", sterilizationRouter);
 app.use("/api/regno", regnoRouter);
 app.use("/api/inventory", inventoryRouter);
+app.use("/api/supply", supplyRouter);
 app.use("/api/admin", staffIncomeSettingsRouter);
 
 // Admin routes

@@ -247,7 +247,10 @@ function getVisibleNavItems(role?: string): NavItem[] {
   if (role === "sterilization") {
     return sterilizationPortalNavItems;
   }
-  return navItems;
+  if (role === "admin") {
+    return navItems;
+  }
+  return navItems.filter((item) => item.label !== "Хангамж");
 }
 
 export default function AdminLayout({ children, wide, hideSidebar }: Props) {

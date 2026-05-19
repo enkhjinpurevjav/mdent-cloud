@@ -22,7 +22,6 @@ type ProductRow = {
   imagePaths: string[];
   isActive: boolean;
   category?: Category;
-  stockOnHand?: number;
 };
 
 const MAX_IMAGES = 3;
@@ -44,7 +43,7 @@ async function uploadProductImage(file: File): Promise<string> {
 
 export default function SupplyOthersPage() {
   const { me, loading: authLoading } = useAuth();
-  const canManage = me?.role === "admin" || me?.role === "super_admin";
+  const canManage = me?.role === "admin";
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [branchId, setBranchId] = useState<string>("");
@@ -111,7 +110,7 @@ export default function SupplyOthersPage() {
     setCatError("");
     try {
       const res = await fetch(
-        `/api/inventory/categories?branchId=${selectedBranchIdNum}&includeInactive=true`
+        `/api/supply/categories?branchId=${selectedBranchIdNum}&includeInactive=true`
       );
       const data = await res.json().catch(() => null);
       if (!res.ok) {
@@ -137,7 +136,7 @@ export default function SupplyOthersPage() {
       if (productQuery.trim()) params.set("q", productQuery.trim());
       if (!showArchivedProducts) params.set("onlyActive", "true");
 
-      const res = await fetch(`/api/inventory/products?${params.toString()}`);
+      const res = await fetch(`/api/supply/products?${params.toString()}`);
       const data = await res.json().catch(() => null);
       if (!res.ok) {
         throw new Error((data && data.error) || "Барааны жагсаалт ачаалж чадсангүй.");
@@ -173,7 +172,7 @@ export default function SupplyOthersPage() {
     if (!name) return;
 
     try {
-      const res = await fetch("/api/inventory/categories", {
+      const res = await fetch("/api/supply/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ branchId: selectedBranchIdNum, name }),
@@ -194,7 +193,7 @@ export default function SupplyOthersPage() {
     if (!name) return;
 
     try {
-      const res = await fetch(`/api/inventory/categories/${id}`, {
+      const res = await fetch(`/api/supply/categories/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -214,7 +213,7 @@ export default function SupplyOthersPage() {
 
   const toggleCategoryArchived = async (category: Category) => {
     try {
-      const res = await fetch(`/api/inventory/categories/${category.id}/archive`, {
+      const res = await fetch(`/api/supply/categories/${category.id}/archive`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !category.isActive }),
@@ -234,7 +233,7 @@ export default function SupplyOthersPage() {
     const ok = window.confirm(`"${category.name}" ангиллыг бүр мөсөн устгах уу?`);
     if (!ok) return;
     try {
-      const res = await fetch(`/api/inventory/categories/${category.id}`, {
+      const res = await fetch(`/api/supply/categories/${category.id}`, {
         method: "DELETE",
       });
       if (res.status === 204) {
@@ -278,7 +277,7 @@ export default function SupplyOthersPage() {
     }
 
     try {
-      const res = await fetch("/api/inventory/products", {
+      const res = await fetch("/api/supply/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -350,7 +349,7 @@ export default function SupplyOthersPage() {
     }
 
     try {
-      const res = await fetch(`/api/inventory/products/${id}`, {
+      const res = await fetch(`/api/supply/products/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -376,7 +375,7 @@ export default function SupplyOthersPage() {
 
   const toggleProductArchived = async (product: ProductRow) => {
     try {
-      const res = await fetch(`/api/inventory/products/${product.id}/archive`, {
+      const res = await fetch(`/api/supply/products/${product.id}/archive`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !product.isActive }),
@@ -395,7 +394,7 @@ export default function SupplyOthersPage() {
     const ok = window.confirm(`"${product.name}" барааг бүр мөсөн устгах уу?`);
     if (!ok) return;
     try {
-      const res = await fetch(`/api/inventory/products/${product.id}`, {
+      const res = await fetch(`/api/supply/products/${product.id}`, {
         method: "DELETE",
       });
       if (res.status === 204) {

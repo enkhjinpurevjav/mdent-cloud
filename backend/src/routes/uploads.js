@@ -165,6 +165,13 @@ function requireAnnouncementManager(req, res, next) {
   return res.status(403).json({ error: "Forbidden. Insufficient role." });
 }
 
+function requireSupplyManager(req, res, next) {
+  if (req.user?.role === "admin") {
+    return next();
+  }
+  return res.status(403).json({ error: "Forbidden. Insufficient role." });
+}
+
 router.post(
   "/staff-photo",
   ...uploadHandler(staffPhotoUploader, "/media/staff-photos", 2)
@@ -188,6 +195,7 @@ router.post(
 
 router.post(
   "/product-image",
+  requireSupplyManager,
   ...uploadHandler(productImageUploader, "/media/product-images", 2)
 );
 
