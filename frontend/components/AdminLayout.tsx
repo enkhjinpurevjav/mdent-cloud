@@ -262,6 +262,8 @@ export default function AdminLayout({ children, wide, hideSidebar }: Props) {
 
   const meDisplayName = me?.name || me?.email || "—";
   const meAvatarLetter = (me?.name || me?.email || "?").charAt(0).toUpperCase();
+  const hideAttendanceShortcut =
+    me?.role === "branch_kiosk" || me?.role === "branch_nurse_kiosk";
   const meDisplayRole = (() => {
     const r = me?.role;
     if (!r) return "—";
@@ -737,27 +739,30 @@ useEffect(() => {
               <NotificationBell className="p-0" iconClassName="h-4 w-4" />
             </div>
 
-            {/* Attendance icon - navigates to check-in/out page */}
-            <Link href="/attendance" legacyBehavior>
-              <a
-                title="Ирц бүртгэл"
-                style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: "999px",
-                  background: isActive("/attendance") ? "rgba(255,255,255,0.2)" : "rgba(15,23,42,0.4)",
-                  color: "white",
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  textDecoration: "none",
-                  fontSize: 16,
-                }}
-              >
-                🕘
-              </a>
-            </Link>
+            {!hideAttendanceShortcut && (
+              <Link href="/attendance" legacyBehavior>
+                <a
+                  title="Ирц бүртгэл"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: "999px",
+                    background: isActive("/attendance")
+                      ? "rgba(255,255,255,0.2)"
+                      : "rgba(15,23,42,0.4)",
+                    color: "white",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    textDecoration: "none",
+                    fontSize: 16,
+                  }}
+                >
+                  🕘
+                </a>
+              </Link>
+            )}
 
             <div
               style={{
