@@ -80,6 +80,80 @@ function parseExpiryFromTokenResponse(data, nowMs) {
   return nowMs + DEFAULT_TOKEN_EXPIRY_MS;
 }
 
+function normalizeInvoiceUrls(data) {
+  const candidates =
+    data?.urls ??
+    data?.qPay_deeplink ??
+    data?.qpay_deeplink ??
+    data?.qpayDeepLink ??
+    data?.qpay_deep_link ??
+    [];
+
+  let rawList = candidates;
+  if (typeof rawList === "string") {
+    try {
+      rawList = JSON.parse(rawList);
+    } catch {
+      rawList = [];
+    }
+  }
+  if (!Array.isArray(rawList)) rawList = [];
+
+  const isValidLink = (value) => {
+    const link = String(value || "").trim();
+    if (!link) return false;
+    return /^[a-z][a-z0-9+.-]*:\/\/.+/i.test(link);
+  };
+
+  const normalized = rawList
+    .map((entry) => {
+      const name = String(
+        entry?.name ??
+        entry?.bank_name ??
+        entry?.bankName ??
+        entry?.description ??
+        ""
+      ).trim();
+      const description = String(entry?.description ?? name).trim();
+      const logo = String(entry?.logo ?? entry?.icon ?? "").trim();
+      const link = String(
+        entry?.link ??
+        entry?.url ??
+        entry?.deeplink ??
+        entry?.deep_link ??
+        ""
+      ).trim();
+
+      if (!isValidLink(link)) return null;
+      return {
+        name: name || description || "QPay",
+        description: description || name || "QPay",
+        logo: logo || "",
+        link,
+      };
+    })
+    .filter(Boolean);
+
+  if (normalized.length > 0) return normalized;
+
+  const shortUrl = String(
+    data?.qPay_shortUrl ??
+    data?.qpay_short_url ??
+    data?.short_url ??
+    ""
+  ).trim();
+  if (shortUrl && /^https?:\/\/.+/i.test(shortUrl)) {
+    return [{
+      name: "QPay",
+      description: "QPay линк",
+      logo: "",
+      link: shortUrl,
+    }];
+  }
+
+  return [];
+}
+
 function logPersistentTokenCacheWarning(err) {
   if (persistentTokenCacheWarningLogged) return;
   persistentTokenCacheWarningLogged = true;
@@ -371,7 +445,7 @@ export async function createInvoice({
     invoice_id: data.invoice_id,
     qr_text: data.qr_text,
     qr_image: data.qr_image,
-    urls: data.urls || [],
+    urls: normalizeInvoiceUrls(data),
     raw: data,
   };
 }

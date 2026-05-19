@@ -133,4 +133,53 @@ describe("qpayService token caching", () => {
     assert.equal(authCalls, 2);
     assert.equal(invoiceCalls, 2);
   });
+
+  it("normalizes invoice deeplink payload and filters invalid links", async () => {
+    global.fetch = async (url) => {
+      const normalizedUrl = String(url);
+      if (normalizedUrl.endsWith("/v2/auth/token")) {
+        return makeJsonResponse(200, {
+          access_token: "token-1",
+          expires_in: 86400,
+        });
+      }
+
+      if (normalizedUrl.endsWith("/v2/invoice")) {
+        return makeJsonResponse(200, {
+          invoice_id: "inv_2",
+          qr_text: "qr",
+          qr_image: "img",
+          qPay_deeplink: [
+            { bank_name: "Bank A", url: "banka://pay?x=1", icon: "a.png" },
+            { name: "Bank B", link: "" },
+            { name: "Bank C", deep_link: "https://pay.example.com/c" },
+          ],
+          qPay_shortUrl: "https://qpay.mn/short/fallback",
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const result = await createInvoice({
+      sender_invoice_no: "BOOK-2",
+      amount: 10,
+      description: "test-links",
+    });
+
+    assert.deepEqual(result.urls, [
+      {
+        name: "Bank A",
+        description: "Bank A",
+        logo: "a.png",
+        link: "banka://pay?x=1",
+      },
+      {
+        name: "Bank C",
+        description: "Bank C",
+        logo: "",
+        link: "https://pay.example.com/c",
+      },
+    ]);
+  });
 });
