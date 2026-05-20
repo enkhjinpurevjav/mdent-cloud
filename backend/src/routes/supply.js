@@ -43,6 +43,14 @@ function parseMoneyAmount(raw, fieldName) {
   return Number(n.toFixed(2));
 }
 
+function parseStockAmount(raw, fieldName) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`${fieldName} must be a non-negative number`);
+  }
+  return Number(n.toFixed(2));
+}
+
 function almostEqual(a, b) {
   return Math.abs(a - b) < 0.01;
 }
@@ -556,6 +564,141 @@ router.post("/checkout", async (req, res) => {
       e.message?.includes("Some products") ||
       e.message?.includes("must equal total amount")
     ) {
+      return res.status(400).json({ error: e.message });
+    }
+    return res.status(500).json({ error: "internal server error" });
+  }
+});
+
+/**
+ * GET /api/supply/inventory?includeInactive=true
+ * Returns categorized stock rows for supply products.
+ */
+router.get("/inventory", async (req, res) => {
+  try {
+    const includeInactive = req.query.includeInactive === "true";
+    const products = await prisma.supplyProduct.findMany({
+      where: includeInactive
+        ? undefined
+        : {
+            isActive: true,
+            category: { isActive: true },
+          },
+      include: {
+        category: true,
+        inventory: true,
+      },
+      orderBy: [{ category: { name: "asc" } }, { name: "asc" }],
+    });
+
+    const orderedItems = await prisma.supplyOrderItem.findMany({
+      where: {
+        order: {
+          status: "COMPLETED",
+        },
+      },
+      select: {
+        productId: true,
+        qty: true,
+      },
+    });
+
+    const orderedByProduct = new Map();
+    for (const row of orderedItems) {
+      const prev = orderedByProduct.get(row.productId) || 0;
+      orderedByProduct.set(row.productId, Number((prev + Number(row.qty || 0)).toFixed(2)));
+    }
+
+    const grouped = new Map();
+    for (const product of products) {
+      const openingBalance = Number(product.inventory?.openingBalance || 0);
+      const consumed = Number(product.inventory?.consumed || 0);
+      const additionalOrdered = Number(orderedByProduct.get(product.id) || 0);
+      const totalBalance = Number((openingBalance + additionalOrdered).toFixed(2));
+      const currentBalance = Number((totalBalance - consumed).toFixed(2));
+
+      const row = {
+        id: product.id,
+        name: product.name,
+        code: product.code,
+        isActive: product.isActive,
+        openingBalance,
+        additionalOrdered,
+        totalBalance,
+        consumed,
+        currentBalance,
+        updatedAt: product.inventory?.updatedAt || null,
+      };
+
+      const catKey = product.categoryId;
+      if (!grouped.has(catKey)) {
+        grouped.set(catKey, {
+          id: product.category.id,
+          name: product.category.name,
+          isActive: product.category.isActive,
+          products: [],
+        });
+      }
+      grouped.get(catKey).products.push(row);
+    }
+
+    return res.json({
+      categories: Array.from(grouped.values()),
+    });
+  } catch (e) {
+    console.error("GET /api/supply/inventory failed", e);
+    return res.status(500).json({ error: "internal server error" });
+  }
+});
+
+/**
+ * PUT /api/supply/inventory/:productId
+ * body: { openingBalance, consumed }
+ */
+router.put("/inventory/:productId", async (req, res) => {
+  try {
+    const productId = Number(req.params.productId);
+    if (!productId || Number.isNaN(productId)) {
+      return res.status(400).json({ error: "invalid productId" });
+    }
+
+    const openingBalance = parseStockAmount(
+      req.body?.openingBalance ?? 0,
+      "openingBalance"
+    );
+    const consumed = parseStockAmount(req.body?.consumed ?? 0, "consumed");
+    const userId = Number(req.user?.id);
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const productExists = await prisma.supplyProduct.findUnique({
+      where: { id: productId },
+      select: { id: true },
+    });
+    if (!productExists) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const saved = await prisma.supplyInventory.upsert({
+      where: { productId },
+      update: {
+        openingBalance,
+        consumed,
+        updatedByUserId: userId,
+      },
+      create: {
+        productId,
+        openingBalance,
+        consumed,
+        updatedByUserId: userId,
+      },
+    });
+
+    return res.json(saved);
+  } catch (e) {
+    console.error("PUT /api/supply/inventory/:productId failed", e);
+    if (e.message?.includes("openingBalance") || e.message?.includes("consumed")) {
       return res.status(400).json({ error: e.message });
     }
     return res.status(500).json({ error: "internal server error" });

@@ -133,11 +133,11 @@ export default function SupplyOthersPage() {
       const res = await fetch("/api/supply/wallet");
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error((data && data.error) || "Хэтэвчийн үлдэгдэл ачаалж чадсангүй.");
+        throw new Error((data && data.error) || "Кредит ачаалж чадсангүй.");
       }
       setWalletAmountInput(String(Number(data?.currentBalance || 0)));
     } catch (e: any) {
-      setWalletMessage(e.message || "Хэтэвчийн үлдэгдэл ачаалж чадсангүй.");
+      setWalletMessage(e.message || "Кредит ачаалж чадсангүй.");
     } finally {
       setWalletLoading(false);
     }
@@ -458,14 +458,12 @@ export default function SupplyOthersPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error((data && data.error) || "Хэтэвчийн үлдэгдэл хадгалах үед алдаа гарлаа.");
+        throw new Error((data && data.error) || "Кредит хадгалах үед алдаа гарлаа.");
       }
       setWalletAmountInput(String(Number(data?.currentBalance || 0)));
       setWalletMessage("Амжилттай хадгаллаа.");
     } catch (e: any) {
-      setWalletMessage(
-        e.message || "Хэтэвчийн үлдэгдэл хадгалах үед алдаа гарлаа."
-      );
+      setWalletMessage(e.message || "Кредит хадгалах үед алдаа гарлаа.");
     } finally {
       setWalletSaving(false);
     }
@@ -473,17 +471,17 @@ export default function SupplyOthersPage() {
 
   if (authLoading) {
     return (
-      <main style={{ maxWidth: 960, margin: "16px auto", padding: 24 }}>
-        Ачааллаж байна...
+      <main className="mx-auto my-4 max-w-7xl p-6">
+        <div className="text-sm text-slate-600">Ачааллаж байна...</div>
       </main>
     );
   }
 
   if (!canManage) {
     return (
-      <main style={{ maxWidth: 960, margin: "16px auto", padding: 24 }}>
-        <h1 style={{ marginTop: 0, fontSize: 20 }}>Хангамж - Бусад</h1>
-        <div style={{ color: "#b91c1c" }}>Хандах эрхгүй.</div>
+      <main className="mx-auto my-4 max-w-7xl p-6">
+        <h1 className="mb-3 text-2xl font-semibold">Хангамж - Бусад</h1>
+        <div className="text-sm text-red-700">Хандах эрхгүй.</div>
       </main>
     );
   }
@@ -493,208 +491,146 @@ export default function SupplyOthersPage() {
     : categories.filter((c) => c.isActive);
 
   return (
-    <main
-      style={{
-        maxWidth: 1240,
-        margin: "16px auto",
-        padding: 24,
-        fontFamily: "sans-serif",
-      }}
-    >
-      <h1 style={{ fontSize: 22, margin: "0 0 12px" }}>Хангамж - Бусад</h1>
-      <p style={{ margin: "0 0 16px", color: "#6b7280", fontSize: 13 }}>
+    <main className="mx-auto my-4 max-w-[1320px] p-6">
+      <h1 className="mb-2 text-2xl font-semibold">Хангамж - Бусад</h1>
+      <p className="mb-4 text-sm text-slate-600">
         Нэгдсэн ангилал, барааны мастер бүртгэл (салбар хамааралгүй).
       </p>
 
-      <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 12 }}>
-        <section
-          style={{
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 8,
-            padding: 12,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-            <h2 style={{ margin: 0, fontSize: 16 }}>Ангилал</h2>
-            <label style={{ fontSize: 12 }}>
+      <div className="grid gap-3 xl:grid-cols-[360px_1fr]">
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Ангилал</h2>
+            <label className="inline-flex items-center gap-1 text-xs text-slate-600">
               <input
                 type="checkbox"
                 checked={showArchivedCategories}
                 onChange={(e) => setShowArchivedCategories(e.target.checked)}
-                style={{ marginRight: 6 }}
               />
               Архивтай нь
             </label>
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+          <div className="mb-3 flex gap-2">
             <input
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
               placeholder="Ангиллын нэр"
-              style={{
-                flex: 1,
-                padding: "6px 8px",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-              }}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
             <button
+              type="button"
               onClick={createCategory}
-              style={{
-                padding: "6px 10px",
-                borderRadius: 6,
-                border: "none",
-                background: "#2563eb",
-                color: "white",
-              }}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
             >
               Нэмэх
             </button>
           </div>
 
           {catLoading ? (
-            <div style={{ color: "#6b7280" }}>Уншиж байна…</div>
+            <div className="text-sm text-slate-600">Уншиж байна...</div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <div className="space-y-2">
               {visibleCategories.map((c) => (
-                <div
-                  key={c.id}
-                  style={{
-                    display: "flex",
-                    gap: 6,
-                    alignItems: "center",
-                    border: "1px solid #f3f4f6",
-                    borderRadius: 8,
-                    padding: 6,
-                  }}
-                >
+                <div key={c.id} className="rounded-lg border border-slate-200 p-2">
                   {editingCategoryId === c.id ? (
-                    <>
+                    <div className="flex flex-wrap items-center gap-2">
                       <input
                         value={editingCategoryName}
                         onChange={(e) => setEditingCategoryName(e.target.value)}
-                        style={{
-                          flex: 1,
-                          padding: "6px 8px",
-                          borderRadius: 6,
-                          border: "1px solid #d1d5db",
-                        }}
+                        className="min-w-[180px] flex-1 rounded border border-slate-300 px-2 py-1.5 text-sm"
                       />
-                      <button onClick={() => saveCategory(c.id)} style={{ padding: "6px 8px" }}>
+                      <button
+                        type="button"
+                        onClick={() => saveCategory(c.id)}
+                        className="rounded border border-slate-300 px-2 py-1.5 text-xs"
+                      >
                         Хадгалах
                       </button>
                       <button
+                        type="button"
                         onClick={() => setEditingCategoryId(null)}
-                        style={{ padding: "6px 8px" }}
+                        className="rounded border border-slate-300 px-2 py-1.5 text-xs"
                       >
                         Болих
                       </button>
-                    </>
+                    </div>
                   ) : (
-                    <>
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={() => setCategoryFilterId(String(c.id))}
-                        style={{
-                          flex: 1,
-                          textAlign: "left",
-                          padding: "6px 8px",
-                          borderRadius: 6,
-                          border:
-                            categoryFilterId === String(c.id)
-                              ? "1px solid #2563eb"
-                              : "1px solid #e5e7eb",
-                          background:
-                            categoryFilterId === String(c.id) ? "#eff6ff" : "white",
-                          cursor: "pointer",
-                        }}
+                        className={`min-w-[180px] flex-1 rounded-lg border px-2 py-1.5 text-left text-sm ${
+                          categoryFilterId === String(c.id)
+                            ? "border-blue-300 bg-blue-50 text-blue-700"
+                            : "border-slate-300 bg-white text-slate-800"
+                        }`}
                       >
-                        {c.name}{" "}
-                        <span style={{ color: "#6b7280", fontSize: 12 }}>
+                        {c.name}
+                        <span className="ml-1 text-xs text-slate-500">
                           ({c._count?.products ?? 0})
                         </span>
                         {!c.isActive && (
-                          <span style={{ marginLeft: 6, color: "#b45309", fontSize: 12 }}>
+                          <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700">
                             архив
                           </span>
                         )}
                       </button>
                       <button
+                        type="button"
                         onClick={() => {
                           setEditingCategoryId(c.id);
                           setEditingCategoryName(c.name);
                         }}
-                        style={{ padding: "6px 8px" }}
+                        className="rounded border border-slate-300 px-2 py-1.5 text-xs"
                       >
                         Засах
                       </button>
                       <button
+                        type="button"
                         onClick={() => toggleCategoryArchived(c)}
-                        style={{ padding: "6px 8px" }}
+                        className="rounded border border-slate-300 px-2 py-1.5 text-xs"
                       >
                         {c.isActive ? "Архив" : "Сэргээх"}
                       </button>
                       <button
+                        type="button"
                         onClick={() => deleteCategory(c)}
-                        style={{ padding: "6px 8px", color: "#b91c1c" }}
+                        className="rounded border border-red-300 px-2 py-1.5 text-xs text-red-700"
                       >
                         Устгах
                       </button>
-                    </>
+                    </div>
                   )}
                 </div>
               ))}
-
               {visibleCategories.length === 0 && (
-                <div style={{ color: "#6b7280" }}>Ангилал алга.</div>
+                <div className="text-sm text-slate-600">Ангилал алга.</div>
               )}
             </div>
           )}
 
-          {catError && (
-            <div style={{ marginTop: 8, color: "#b91c1c", fontSize: 12 }}>{catError}</div>
-          )}
+          {catError && <div className="mt-3 text-xs text-red-700">{catError}</div>}
         </section>
 
-        <section
-          style={{
-            background: "white",
-            border: "1px solid #e5e7eb",
-            borderRadius: 8,
-            padding: 12,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: 8,
-            }}
-          >
-            <h2 style={{ margin: 0, fontSize: 16 }}>Бараа</h2>
-            <label style={{ fontSize: 12 }}>
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold">Бараа</h2>
+            <label className="inline-flex items-center gap-1 text-xs text-slate-600">
               <input
                 type="checkbox"
                 checked={showArchivedProducts}
                 onChange={(e) => setShowArchivedProducts(e.target.checked)}
-                style={{ marginRight: 6 }}
               />
               Архивтай нь
             </label>
           </div>
 
-          <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+          <div className="mb-3 flex flex-wrap gap-2">
             <select
               value={categoryFilterId}
               onChange={(e) => setCategoryFilterId(e.target.value)}
-              style={{
-                padding: "6px 8px",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-              }}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
             >
               <option value="">Бүх ангилал</option>
               {categories.map((c) => (
@@ -708,212 +644,137 @@ export default function SupplyOthersPage() {
               value={productQuery}
               onChange={(e) => setProductQuery(e.target.value)}
               placeholder="Нэр/код хайх..."
-              style={{
-                flex: 1,
-                minWidth: 180,
-                padding: "6px 8px",
-                borderRadius: 6,
-                border: "1px solid #d1d5db",
-              }}
+              className="min-w-[180px] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
 
-            <button onClick={loadProducts} style={{ padding: "6px 10px" }}>
+            <button
+              type="button"
+              onClick={loadProducts}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+            >
               Хайх
             </button>
           </div>
 
-          <div
-            style={{
-              border: "1px solid #e5e7eb",
-              borderRadius: 8,
-              padding: 10,
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Бараа нэмэх</div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "170px 1fr 130px 100px",
-                gap: 8,
-                marginBottom: 8,
-              }}
-            >
+          <div className="mb-3 rounded-xl border border-slate-200 p-3">
+            <div className="mb-2 text-sm font-semibold">Бараа нэмэх</div>
+            <div className="grid gap-2 md:grid-cols-[170px_1fr_130px_110px]">
               <select
                 value={newProduct.categoryId}
                 onChange={(e) => setNewProduct((p) => ({ ...p, categoryId: e.target.value }))}
-                style={{
-                  padding: "6px 8px",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                }}
+                className="rounded-lg border border-slate-300 px-2 py-2 text-sm"
               >
                 <option value="">Ангилал (заавал)</option>
-                {categories.filter((c) => c.isActive).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
+                {categories
+                  .filter((c) => c.isActive)
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
               </select>
               <input
                 value={newProduct.name}
                 onChange={(e) => setNewProduct((p) => ({ ...p, name: e.target.value }))}
                 placeholder="Нэр"
-                style={{
-                  padding: "6px 8px",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                }}
+                className="rounded-lg border border-slate-300 px-2 py-2 text-sm"
               />
               <input
                 value={newProduct.code}
                 onChange={(e) => setNewProduct((p) => ({ ...p, code: e.target.value }))}
                 placeholder="Код"
-                style={{
-                  padding: "6px 8px",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                }}
+                className="rounded-lg border border-slate-300 px-2 py-2 text-sm"
               />
               <input
                 value={newProduct.price}
                 onChange={(e) => setNewProduct((p) => ({ ...p, price: e.target.value }))}
                 placeholder="Үнэ"
-                style={{
-                  padding: "6px 8px",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                }}
+                className="rounded-lg border border-slate-300 px-2 py-2 text-sm"
               />
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
+
+            <div className="mt-2 grid gap-2 md:grid-cols-[1fr_auto]">
               <textarea
                 value={newProduct.description}
                 onChange={(e) => setNewProduct((p) => ({ ...p, description: e.target.value }))}
                 placeholder="Тайлбар"
                 rows={2}
-                style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid #d1d5db" }}
+                className="rounded-lg border border-slate-300 px-2 py-2 text-sm"
               />
               <button
+                type="button"
                 onClick={createProduct}
-                style={{
-                  borderRadius: 6,
-                  border: "none",
-                  background: "#16a34a",
-                  color: "white",
-                  minWidth: 120,
-                }}
+                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
               >
                 Хадгалах
               </button>
             </div>
 
-            <div style={{ marginTop: 8 }}>
-              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>
-                Зураг ({newProduct.imagePaths.length}/{MAX_IMAGES})
-              </div>
-              <input
-                type="file"
-                accept="image/*"
-                disabled={newImageUploading || newProduct.imagePaths.length >= MAX_IMAGES}
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  await handleAddNewProductImage(file);
-                  e.target.value = "";
-                }}
-              />
-              <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                {newProduct.imagePaths.map((path, idx) => (
-                  <div key={`${path}-${idx}`} style={{ position: "relative" }}>
-                    <img
-                      src={path}
-                      alt={`new-product-image-${idx + 1}`}
-                      style={{
-                        width: 72,
-                        height: 72,
-                        objectFit: "cover",
-                        borderRadius: 6,
-                        border: "1px solid #e5e7eb",
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setNewProduct((prev) => ({
-                          ...prev,
-                          imagePaths: prev.imagePaths.filter((_, i) => i !== idx),
-                        }))
-                      }
-                      style={{
-                        position: "absolute",
-                        top: -8,
-                        right: -8,
-                        borderRadius: "50%",
-                        border: "none",
-                        width: 20,
-                        height: 20,
-                        background: "#dc2626",
-                        color: "white",
-                        cursor: "pointer",
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
+            <div className="mt-2 text-xs text-slate-600">
+              Зураг ({newProduct.imagePaths.length}/{MAX_IMAGES})
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              disabled={newImageUploading || newProduct.imagePaths.length >= MAX_IMAGES}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                await handleAddNewProductImage(file);
+                e.target.value = "";
+              }}
+              className="mt-1 text-xs"
+            />
+
+            <div className="mt-2 flex flex-wrap gap-2">
+              {newProduct.imagePaths.map((path, idx) => (
+                <div key={`${path}-${idx}`} className="relative">
+                  <img
+                    src={path}
+                    alt={`new-product-image-${idx + 1}`}
+                    className="h-16 w-16 rounded border border-slate-200 object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setNewProduct((prev) => ({
+                        ...prev,
+                        imagePaths: prev.imagePaths.filter((_, i) => i !== idx),
+                      }))
+                    }
+                    className="absolute -right-2 -top-2 h-5 w-5 rounded-full bg-red-600 text-xs text-white"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
 
-          <div
-            style={{
-              border: "1px solid #e5e7eb",
-              borderRadius: 8,
-              padding: 10,
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>
-              Хэтэвчийн үлдэгдэл (Set absolute balance)
-            </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="mb-3 rounded-xl border border-slate-200 p-3">
+            <div className="mb-2 text-sm font-semibold">Кредит (absolute balance)</div>
+            <div className="flex flex-wrap items-center gap-2">
               <input
                 type="number"
                 min={0}
                 value={walletAmountInput}
                 onChange={(e) => setWalletAmountInput(e.target.value)}
                 placeholder="Ж: 100000"
-                style={{
-                  width: 220,
-                  padding: "6px 8px",
-                  borderRadius: 6,
-                  border: "1px solid #d1d5db",
-                }}
+                className="w-52 rounded-lg border border-slate-300 px-3 py-2 text-sm"
               />
               <button
                 type="button"
                 onClick={saveWalletBalance}
                 disabled={walletLoading || walletSaving}
-                style={{
-                  borderRadius: 6,
-                  border: "none",
-                  background: "#2563eb",
-                  color: "white",
-                  padding: "6px 12px",
-                  cursor: walletLoading || walletSaving ? "default" : "pointer",
-                  opacity: walletLoading || walletSaving ? 0.7 : 1,
-                }}
+                className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-70"
               >
                 {walletSaving ? "Хадгалж байна..." : "Хадгалах"}
               </button>
             </div>
             {walletMessage && (
               <div
-                style={{
-                  marginTop: 8,
-                  fontSize: 12,
-                  color: walletMessage.includes("Амжилттай") ? "#166534" : "#b91c1c",
-                }}
+                className={`mt-2 text-xs ${
+                  walletMessage.includes("Амжилттай") ? "text-emerald-700" : "text-red-700"
+                }`}
               >
                 {walletMessage}
               </div>
@@ -921,216 +782,216 @@ export default function SupplyOthersPage() {
           </div>
 
           {prodLoading ? (
-            <div style={{ color: "#6b7280" }}>Уншиж байна…</div>
+            <div className="text-sm text-slate-600">Уншиж байна...</div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb" }}>
-                    Нэр
-                  </th>
-                  <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb" }}>
-                    Ангилал
-                  </th>
-                  <th style={{ textAlign: "right", padding: 8, borderBottom: "1px solid #e5e7eb" }}>
-                    Үнэ
-                  </th>
-                  <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb" }}>
-                    Тайлбар
-                  </th>
-                  <th style={{ textAlign: "center", padding: 8, borderBottom: "1px solid #e5e7eb" }}>
-                    Зураг
-                  </th>
-                  <th style={{ textAlign: "center", padding: 8, borderBottom: "1px solid #e5e7eb" }}>
-                    Төлөв
-                  </th>
-                  <th style={{ padding: 8, borderBottom: "1px solid #e5e7eb" }} />
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p) => (
-                  <tr key={p.id}>
-                    {editingProductId === p.id ? (
-                      <>
-                        <td style={{ padding: 8 }}>
-                          <input
-                            value={editingProduct.name}
-                            onChange={(e) =>
-                              setEditingProduct((x) => ({ ...x, name: e.target.value }))
-                            }
-                          />
-                        </td>
-                        <td style={{ padding: 8 }}>
-                          <select
-                            value={editingProduct.categoryId}
-                            onChange={(e) =>
-                              setEditingProduct((x) => ({ ...x, categoryId: e.target.value }))
-                            }
-                          >
-                            {categories.filter((c) => c.isActive).map((c) => (
-                              <option key={c.id} value={c.id}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td style={{ padding: 8, textAlign: "right" }}>
-                          <input
-                            value={editingProduct.price}
-                            onChange={(e) =>
-                              setEditingProduct((x) => ({ ...x, price: e.target.value }))
-                            }
-                          />
-                        </td>
-                        <td style={{ padding: 8 }}>
-                          <textarea
-                            value={editingProduct.description}
-                            onChange={(e) =>
-                              setEditingProduct((x) => ({
-                                ...x,
-                                description: e.target.value,
-                              }))
-                            }
-                            rows={2}
-                          />
-                        </td>
-                        <td style={{ padding: 8 }}>
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            {editingProduct.imagePaths.map((path, idx) => (
-                              <div key={`${path}-${idx}`} style={{ position: "relative" }}>
-                                <img
-                                  src={path}
-                                  alt={`edit-product-image-${idx + 1}`}
-                                  style={{
-                                    width: 48,
-                                    height: 48,
-                                    objectFit: "cover",
-                                    borderRadius: 6,
-                                    border: "1px solid #e5e7eb",
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setEditingProduct((prev) => ({
-                                      ...prev,
-                                      imagePaths: prev.imagePaths.filter((_, i) => i !== idx),
-                                    }))
-                                  }
-                                  style={{
-                                    position: "absolute",
-                                    top: -8,
-                                    right: -8,
-                                    borderRadius: "50%",
-                                    border: "none",
-                                    width: 18,
-                                    height: 18,
-                                    background: "#dc2626",
-                                    color: "white",
-                                    cursor: "pointer",
-                                    fontSize: 12,
-                                  }}
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            disabled={
-                              editImageUploading ||
-                              editingProduct.imagePaths.length >= MAX_IMAGES
-                            }
-                            onChange={async (e) => {
-                              const file = e.target.files?.[0];
-                              await handleAddEditProductImage(file);
-                              e.target.value = "";
-                            }}
-                            style={{ marginTop: 6, maxWidth: 200 }}
-                          />
-                        </td>
-                        <td style={{ padding: 8, textAlign: "center" }}>
-                          <input
-                            type="checkbox"
-                            checked={editingProduct.isActive}
-                            onChange={(e) =>
-                              setEditingProduct((x) => ({ ...x, isActive: e.target.checked }))
-                            }
-                          />
-                        </td>
-                        <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
-                          <button onClick={() => saveProduct(p.id)} style={{ marginRight: 6 }}>
-                            Хадгалах
-                          </button>
-                          <button onClick={() => setEditingProductId(null)}>Болих</button>
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td style={{ padding: 8 }}>{p.name}</td>
-                        <td style={{ padding: 8 }}>{(p as any).category?.name || p.categoryId}</td>
-                        <td style={{ padding: 8, textAlign: "right" }}>
-                          {Number(p.price).toLocaleString("mn-MN")}
-                        </td>
-                        <td style={{ padding: 8 }}>{p.description || "-"}</td>
-                        <td style={{ padding: 8, textAlign: "center" }}>
-                          <div style={{ display: "flex", justifyContent: "center", gap: 4 }}>
-                            {(Array.isArray(p.imagePaths) ? p.imagePaths : []).slice(0, 2).map((img, idx) => (
-                              <img
-                                key={`${img}-${idx}`}
-                                src={img}
-                                alt={`${p.name}-img-${idx + 1}`}
-                                style={{
-                                  width: 34,
-                                  height: 34,
-                                  borderRadius: 6,
-                                  objectFit: "cover",
-                                  border: "1px solid #e5e7eb",
-                                }}
-                              />
-                            ))}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
-                            {(Array.isArray(p.imagePaths) ? p.imagePaths.length : 0)} зураг
-                          </div>
-                        </td>
-                        <td style={{ padding: 8, textAlign: "center" }}>
-                          {p.isActive ? "Идэвхтэй" : "Архив"}
-                        </td>
-                        <td style={{ padding: 8, textAlign: "right", whiteSpace: "nowrap" }}>
-                          <button onClick={() => startEditProduct(p)} style={{ marginRight: 6 }}>
-                            Засах
-                          </button>
-                          <button
-                            onClick={() => toggleProductArchived(p)}
-                            style={{ marginRight: 6 }}
-                          >
-                            {p.isActive ? "Архив" : "Сэргээх"}
-                          </button>
-                          <button onClick={() => deleteProduct(p)} style={{ color: "#b91c1c" }}>
-                            Устгах
-                          </button>
-                        </td>
-                      </>
-                    )}
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-left">
+                    <th className="px-2 py-2">Нэр</th>
+                    <th className="px-2 py-2">Ангилал</th>
+                    <th className="px-2 py-2 text-right">Үнэ</th>
+                    <th className="px-2 py-2">Тайлбар</th>
+                    <th className="px-2 py-2 text-center">Зураг</th>
+                    <th className="px-2 py-2 text-center">Төлөв</th>
+                    <th className="px-2 py-2" />
                   </tr>
-                ))}
-                {products.length === 0 && (
-                  <tr>
-                    <td colSpan={7} style={{ padding: 8, color: "#6b7280" }}>
-                      Бараа алга.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {products.map((p) => (
+                    <tr key={p.id} className="border-b border-slate-100 align-top">
+                      {editingProductId === p.id ? (
+                        <>
+                          <td className="px-2 py-2">
+                            <input
+                              value={editingProduct.name}
+                              onChange={(e) =>
+                                setEditingProduct((x) => ({ ...x, name: e.target.value }))
+                              }
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <select
+                              value={editingProduct.categoryId}
+                              onChange={(e) =>
+                                setEditingProduct((x) => ({ ...x, categoryId: e.target.value }))
+                              }
+                              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+                            >
+                              {categories
+                                .filter((c) => c.isActive)
+                                .map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </td>
+                          <td className="px-2 py-2 text-right">
+                            <input
+                              value={editingProduct.price}
+                              onChange={(e) =>
+                                setEditingProduct((x) => ({ ...x, price: e.target.value }))
+                              }
+                              className="w-24 rounded border border-slate-300 px-2 py-1.5 text-sm text-right"
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <textarea
+                              value={editingProduct.description}
+                              onChange={(e) =>
+                                setEditingProduct((x) => ({
+                                  ...x,
+                                  description: e.target.value,
+                                }))
+                              }
+                              rows={2}
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="flex flex-wrap justify-center gap-1">
+                              {editingProduct.imagePaths.map((path, idx) => (
+                                <div key={`${path}-${idx}`} className="relative">
+                                  <img
+                                    src={path}
+                                    alt={`edit-product-image-${idx + 1}`}
+                                    className="h-12 w-12 rounded border border-slate-200 object-cover"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setEditingProduct((prev) => ({
+                                        ...prev,
+                                        imagePaths: prev.imagePaths.filter((_, i) => i !== idx),
+                                      }))
+                                    }
+                                    className="absolute -right-2 -top-2 h-4 w-4 rounded-full bg-red-600 text-[10px] text-white"
+                                  >
+                                    ×
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={
+                                editImageUploading ||
+                                editingProduct.imagePaths.length >= MAX_IMAGES
+                              }
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                await handleAddEditProductImage(file);
+                                e.target.value = "";
+                              }}
+                              className="mt-1 max-w-[180px] text-xs"
+                            />
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={editingProduct.isActive}
+                              onChange={(e) =>
+                                setEditingProduct((x) => ({ ...x, isActive: e.target.checked }))
+                              }
+                            />
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => saveProduct(p.id)}
+                              className="mr-1 rounded border border-slate-300 px-2 py-1 text-xs"
+                            >
+                              Хадгалах
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingProductId(null)}
+                              className="rounded border border-slate-300 px-2 py-1 text-xs"
+                            >
+                              Болих
+                            </button>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td className="px-2 py-2">{p.name}</td>
+                          <td className="px-2 py-2">{p.category?.name || p.categoryId}</td>
+                          <td className="px-2 py-2 text-right">
+                            {Number(p.price).toLocaleString("mn-MN")}
+                          </td>
+                          <td className="px-2 py-2">{p.description || "-"}</td>
+                          <td className="px-2 py-2">
+                            <div className="flex justify-center gap-1">
+                              {(Array.isArray(p.imagePaths) ? p.imagePaths : [])
+                                .slice(0, 2)
+                                .map((img, idx) => (
+                                  <img
+                                    key={`${img}-${idx}`}
+                                    src={img}
+                                    alt={`${p.name}-img-${idx + 1}`}
+                                    className="h-8 w-8 rounded border border-slate-200 object-cover"
+                                  />
+                                ))}
+                            </div>
+                            <div className="mt-0.5 text-center text-[10px] text-slate-500">
+                              {(Array.isArray(p.imagePaths) ? p.imagePaths.length : 0)} зураг
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            {p.isActive ? (
+                              <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                                Идэвхтэй
+                              </span>
+                            ) : (
+                              <span className="rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
+                                Архив
+                              </span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => startEditProduct(p)}
+                              className="mr-1 rounded border border-slate-300 px-2 py-1 text-xs"
+                            >
+                              Засах
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleProductArchived(p)}
+                              className="mr-1 rounded border border-slate-300 px-2 py-1 text-xs"
+                            >
+                              {p.isActive ? "Архив" : "Сэргээх"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteProduct(p)}
+                              className="rounded border border-red-300 px-2 py-1 text-xs text-red-700"
+                            >
+                              Устгах
+                            </button>
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+
+                  {products.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-2 py-3 text-sm text-slate-600">
+                        Бараа алга.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           )}
 
-          {prodError && (
-            <div style={{ marginTop: 8, color: "#b91c1c", fontSize: 12 }}>{prodError}</div>
-          )}
+          {prodError && <div className="mt-3 text-xs text-red-700">{prodError}</div>}
         </section>
       </div>
     </main>

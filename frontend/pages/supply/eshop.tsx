@@ -59,11 +59,11 @@ function formatDateTime(iso: string) {
 
 function ProductCarousel({
   images,
-  height,
+  heightClassName,
   onClick,
 }: {
   images: string[];
-  height: number;
+  heightClassName: string;
   onClick?: () => void;
 }) {
   const safeImages = Array.isArray(images) && images.length > 0 ? images : [];
@@ -86,60 +86,40 @@ function ProductCarousel({
           }
           onClick?.();
         }}
-        style={{
-          width: "100%",
-          height,
-          border: "1px solid #e5e7eb",
-          borderRadius: 8,
-          background: "#f8fafc",
-          cursor: "pointer",
-          overflow: "hidden",
-          padding: 0,
-        }}
+        className={`w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-50 ${heightClassName}`}
       >
         {current ? (
-          <img
-            src={current}
-            alt="product"
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
+          <img src={current} alt="product" className="h-full w-full object-cover" />
         ) : (
-          <div
-            style={{
-              width: "100%",
-              height: "100%",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#94a3b8",
-              fontSize: 12,
-            }}
-          >
+          <div className="flex h-full w-full items-center justify-center text-xs text-slate-400">
             Зураггүй
           </div>
         )}
       </button>
       {hasImages && (
-        <div style={{ display: "flex", justifyContent: "center", gap: 4, marginTop: 6 }}>
+        <div className="mt-2 flex justify-center gap-1">
           {safeImages.map((_, dotIdx) => (
             <button
               key={dotIdx}
               type="button"
               onClick={() => setIdx(dotIdx)}
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                border: "none",
-                cursor: "pointer",
-                background: dotIdx === idx ? "#2563eb" : "#cbd5e1",
-                padding: 0,
-              }}
+              className={`h-2 w-2 rounded-full ${
+                dotIdx === idx ? "bg-blue-600" : "bg-slate-300"
+              }`}
             />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function AddingSpinner() {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+      Нэмж байна...
+    </span>
   );
 }
 
@@ -216,10 +196,10 @@ export default function SupplyEshopPage() {
     try {
       const res = await fetch("/api/supply/wallet");
       const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error((data && data.error) || "Хэтэвчийн үлдэгдэл ачаалж чадсангүй.");
+      if (!res.ok) throw new Error((data && data.error) || "Кредит ачаалж чадсангүй.");
       setWalletBalance(Number(data?.currentBalance || 0));
     } catch (e: any) {
-      setError(e.message || "Хэтэвчийн үлдэгдэл ачаалж чадсангүй.");
+      setError(e.message || "Кредит ачаалж чадсангүй.");
       setWalletBalance(0);
     } finally {
       setWalletLoading(false);
@@ -353,7 +333,7 @@ export default function SupplyEshopPage() {
       return;
     }
     if (!Number.isFinite(walletAmount) || walletAmount < 0) {
-      setCheckoutError("Хэтэвчийн дүн буруу байна.");
+      setCheckoutError("Кредитийн дүн буруу байна.");
       return;
     }
     if (!Number.isFinite(transferAmount) || transferAmount < 0) {
@@ -361,7 +341,7 @@ export default function SupplyEshopPage() {
       return;
     }
     if (walletAmount > walletBalance) {
-      setCheckoutError("Хэтэвчийн дүн үлдэгдлээс их байж болохгүй.");
+      setCheckoutError("Кредитийн дүн үлдэгдлээс их байж болохгүй.");
       return;
     }
     const paymentTotal = Number((walletAmount + transferAmount).toFixed(2));
@@ -387,15 +367,16 @@ export default function SupplyEshopPage() {
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {
-        throw new Error((data && data.error) || "Checkout хийхэд алдаа гарлаа.");
+        throw new Error((data && data.error) || "Захиалга үүсгэх үед алдаа гарлаа.");
       }
       setWalletBalance(Number(data?.walletBalance || 0));
       setCartItems([]);
       setCheckoutOpen(false);
-      setCheckoutSuccess("Checkout амжилттай.");
+      setCheckoutSuccess("Захиалга амжилттай үүслээ.");
       setActiveTab("account");
+      setAddedProductIds([]);
     } catch (e: any) {
-      setCheckoutError(e.message || "Checkout хийхэд алдаа гарлаа.");
+      setCheckoutError(e.message || "Захиалга үүсгэх үед алдаа гарлаа.");
     } finally {
       setCheckingOut(false);
     }
@@ -403,23 +384,26 @@ export default function SupplyEshopPage() {
 
   if (authLoading) {
     return (
-      <main style={{ maxWidth: 1200, margin: "16px auto", padding: 24 }}>Ачааллаж байна...</main>
+      <main className="mx-auto my-4 max-w-7xl p-6">
+        <div className="text-sm text-slate-600">Ачааллаж байна...</div>
+      </main>
     );
   }
 
   if (!canManage) {
     return (
-      <main style={{ maxWidth: 1200, margin: "16px auto", padding: 24 }}>
-        <h1 style={{ marginTop: 0, fontSize: 22 }}>e-Shop</h1>
-        <div style={{ color: "#b91c1c" }}>Хандах эрхгүй.</div>
+      <main className="mx-auto my-4 max-w-7xl p-6">
+        <h1 className="mb-3 text-2xl font-semibold">e-Shop</h1>
+        <div className="text-sm text-red-700">Хандах эрхгүй.</div>
       </main>
     );
   }
 
   return (
-    <main style={{ maxWidth: 1280, margin: "16px auto", padding: 24, fontFamily: "sans-serif" }}>
-      <h1 style={{ fontSize: 24, margin: "0 0 12px" }}>e-Shop</h1>
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+    <main className="mx-auto my-4 max-w-[1320px] p-6">
+      <h1 className="mb-4 text-2xl font-semibold text-slate-900">e-Shop</h1>
+
+      <div className="mb-4 flex flex-wrap gap-2">
         {[
           { key: "products", label: "Бүтээгдэхүүн" },
           { key: "cart", label: "Сагс" },
@@ -429,40 +413,30 @@ export default function SupplyEshopPage() {
             key={tab.key}
             type="button"
             onClick={() => setActiveTab(tab.key as TabKey)}
-            style={{
-              border: "1px solid #d1d5db",
-              borderRadius: 10,
-              padding: "8px 14px",
-              background: activeTab === tab.key ? "#1d4ed8" : "white",
-              color: activeTab === tab.key ? "white" : "#111827",
-              cursor: "pointer",
-              fontWeight: 600,
-            }}
+            className={`rounded-lg border px-4 py-2 text-sm font-semibold ${
+              activeTab === tab.key
+                ? "border-blue-700 bg-blue-700 text-white"
+                : "border-slate-300 bg-white text-slate-800"
+            }`}
           >
             {tab.label}
           </button>
         ))}
       </div>
 
-      {error && (
-        <div style={{ marginBottom: 12, color: "#b91c1c", fontSize: 13 }}>
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       {activeTab === "products" && (
         <section>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          <div className="mb-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setSelectedCategoryId(null)}
-              style={{
-                borderRadius: 999,
-                border: "1px solid #cbd5e1",
-                padding: "6px 12px",
-                background: selectedCategoryId === null ? "#dbeafe" : "white",
-                cursor: "pointer",
-              }}
+              className={`rounded-full border px-3 py-1.5 text-sm ${
+                selectedCategoryId === null
+                  ? "border-blue-300 bg-blue-50 text-blue-700"
+                  : "border-slate-300 bg-white text-slate-700"
+              }`}
             >
               Сүүлд нэмэгдсэн
             </button>
@@ -471,66 +445,40 @@ export default function SupplyEshopPage() {
                 key={cat.id}
                 type="button"
                 onClick={() => setSelectedCategoryId(cat.id)}
-                style={{
-                  borderRadius: 999,
-                  border: "1px solid #cbd5e1",
-                  padding: "6px 12px",
-                  background: selectedCategoryId === cat.id ? "#dbeafe" : "white",
-                  cursor: "pointer",
-                }}
+                className={`rounded-full border px-3 py-1.5 text-sm ${
+                  selectedCategoryId === cat.id
+                    ? "border-blue-300 bg-blue-50 text-blue-700"
+                    : "border-slate-300 bg-white text-slate-700"
+                }`}
               >
                 {cat.name}
               </button>
             ))}
           </div>
 
-          <div style={{ marginBottom: 10, fontSize: 13, color: "#475569" }}>
+          <div className="mb-3 text-sm text-slate-600">
             {selectedCategoryId ? "Сонгосон ангиллын бараанууд" : "Сүүлд нэмэгдсэн 10 бараа"}
           </div>
 
           {productsLoading ? (
-            <div style={{ color: "#6b7280" }}>Ачааллаж байна...</div>
+            <div className="text-sm text-slate-600">Ачааллаж байна...</div>
           ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-                gap: 12,
-              }}
-            >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
               {showProducts.map((product) => (
-                <div
-                  key={product.id}
-                  style={{
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 10,
-                    background: "white",
-                    padding: 10,
-                  }}
-                >
+                <div key={product.id} className="rounded-xl border border-slate-200 bg-white p-3">
                   <ProductCarousel
                     images={product.imagePaths}
-                    height={126}
+                    heightClassName="h-36"
                     onClick={() => setPopupProduct(product)}
                   />
                   <button
                     type="button"
                     onClick={() => setPopupProduct(product)}
-                    style={{
-                      marginTop: 8,
-                      border: "none",
-                      background: "transparent",
-                      textAlign: "left",
-                      padding: 0,
-                      cursor: "pointer",
-                      width: "100%",
-                    }}
+                    className="mt-2 w-full text-left text-sm font-semibold text-slate-900"
                   >
-                    <div style={{ fontWeight: 600, color: "#0f172a", lineHeight: 1.3 }}>
-                      {product.name}
-                    </div>
+                    {product.name}
                   </button>
-                  <div style={{ marginTop: 4, color: "#1d4ed8", fontWeight: 700 }}>
+                  <div className="mt-1 text-sm font-bold text-blue-700">
                     <Price value={product.price} />
                   </div>
                   <button
@@ -542,28 +490,22 @@ export default function SupplyEshopPage() {
                       }
                       addToCartWithFeedback(product);
                     }}
-                    style={{
-                      marginTop: 8,
-                      width: "100%",
-                      border: "none",
-                      borderRadius: 8,
-                      background: "#16a34a",
-                      color: "white",
-                      padding: "8px 10px",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
+                    className="mt-2 inline-flex w-full items-center justify-center rounded-lg bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"
                   >
-                    {addingProductIds.includes(product.id)
-                      ? "⏳ Нэмж байна..."
-                      : addedProductIds.includes(product.id)
-                      ? "Сагс руу очих"
-                      : "Захиалах"}
+                    {addingProductIds.includes(product.id) ? (
+                      <AddingSpinner />
+                    ) : addedProductIds.includes(product.id) ? (
+                      "Сагс руу очих"
+                    ) : (
+                      "Захиалах"
+                    )}
                   </button>
                 </div>
               ))}
               {showProducts.length === 0 && (
-                <div style={{ color: "#6b7280", gridColumn: "1 / -1" }}>Бараа алга.</div>
+                <div className="col-span-full rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
+                  Бараа алга.
+                </div>
               )}
             </div>
           )}
@@ -571,53 +513,36 @@ export default function SupplyEshopPage() {
       )}
 
       {activeTab === "cart" && (
-        <section
-          style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            background: "white",
-            padding: 14,
-          }}
-        >
-          <h2 style={{ marginTop: 0, marginBottom: 10, fontSize: 18 }}>Сагс</h2>
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="mb-3 text-lg font-semibold">Сагс</h2>
           {cartItems.length === 0 ? (
-            <div style={{ color: "#6b7280" }}>Сагс хоосон байна.</div>
+            <div className="text-sm text-slate-600">Сагс хоосон байна.</div>
           ) : (
             <>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="flex flex-col gap-2">
                 {cartItems.map((item) => (
                   <div
                     key={item.product.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 8,
-                      padding: 10,
-                      display: "grid",
-                      gridTemplateColumns: "1fr auto auto auto",
-                      gap: 10,
-                      alignItems: "center",
-                    }}
+                    className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 rounded-lg border border-slate-200 p-3"
                   >
                     <div>
-                      <div style={{ fontWeight: 600 }}>{item.product.name}</div>
-                      <div style={{ color: "#1d4ed8", fontSize: 13 }}>
+                      <div className="text-sm font-semibold">{item.product.name}</div>
+                      <div className="text-xs font-semibold text-blue-700">
                         <Price value={item.product.price} />
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={() => changeQty(item.product.id, item.qty - 1)}
-                      style={{ width: 28, height: 28 }}
+                      className="h-8 w-8 rounded border border-slate-300 text-sm"
                     >
                       −
                     </button>
-                    <div style={{ minWidth: 24, textAlign: "center", fontWeight: 600 }}>
-                      {item.qty}
-                    </div>
+                    <div className="min-w-6 text-center text-sm font-semibold">{item.qty}</div>
                     <button
                       type="button"
                       onClick={() => changeQty(item.product.id, item.qty + 1)}
-                      style={{ width: 28, height: 28 }}
+                      className="h-8 w-8 rounded border border-slate-300 text-sm"
                     >
                       +
                     </button>
@@ -625,34 +550,18 @@ export default function SupplyEshopPage() {
                 ))}
               </div>
 
-              <div
-                style={{
-                  marginTop: 12,
-                  paddingTop: 10,
-                  borderTop: "1px solid #e5e7eb",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontWeight: 700,
-                }}
-              >
+              <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-bold">
                 <span>Нийт дүн</span>
                 <span>
                   <Price value={cartTotal} />
                 </span>
               </div>
-              <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+
+              <div className="mt-3 flex justify-end">
                 <button
                   type="button"
                   onClick={openCheckout}
-                  style={{
-                    border: "none",
-                    borderRadius: 8,
-                    background: "#0f766e",
-                    color: "white",
-                    padding: "8px 14px",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
+                  className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-800"
                 >
                   Захиалга үүсгэх
                 </button>
@@ -660,75 +569,57 @@ export default function SupplyEshopPage() {
             </>
           )}
           {checkoutSuccess && (
-            <div style={{ marginTop: 10, color: "#166534", fontSize: 13 }}>{checkoutSuccess}</div>
+            <div className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">
+              {checkoutSuccess}
+            </div>
           )}
         </section>
       )}
 
       {activeTab === "account" && (
-        <section
-          style={{
-            border: "1px solid #e5e7eb",
-            borderRadius: 10,
-            background: "white",
-            padding: 14,
-          }}
-        >
-          <h2 style={{ marginTop: 0, marginBottom: 10, fontSize: 18 }}>Миний Аккаунт</h2>
-          <div style={{ display: "grid", gap: 6, fontSize: 14 }}>
+        <section className="rounded-xl border border-slate-200 bg-white p-4">
+          <h2 className="mb-3 text-lg font-semibold">Миний Аккаунт</h2>
+          <div className="grid gap-1 text-sm text-slate-700">
             <div>
-              <strong>Нэр:</strong> {me?.name || "-"}
+              <span className="font-semibold">Нэр:</span> {me?.name || "-"}
             </div>
             <div>
-              <strong>Имэйл:</strong> {me?.email || "-"}
+              <span className="font-semibold">Имэйл:</span> {me?.email || "-"}
             </div>
             <div>
-              <strong>Эрх:</strong> {me?.role || "-"}
+              <span className="font-semibold">Эрх:</span> {me?.role || "-"}
             </div>
             <div>
-              <strong>Кредит:</strong>{" "}
+              <span className="font-semibold">Кредит:</span>{" "}
               {walletLoading ? "Ачааллаж байна..." : <Price value={walletBalance} />}
             </div>
           </div>
-          <div style={{ marginTop: 12, display: "grid", gap: 8, justifyItems: "start" }}>
+
+          <div className="mt-3 grid justify-items-start gap-2">
             <button
               type="button"
               onClick={() => {
                 setCreditRequestMessage("");
                 setCreditPopupOpen(true);
               }}
-              style={{
-                border: "none",
-                borderRadius: 8,
-                background: "#2563eb",
-                color: "white",
-                padding: "8px 12px",
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
             >
               Кредит нэмэх
             </button>
+
             <button
               type="button"
               onClick={() => {
                 setOrderHistoryOpen(true);
                 void loadOrderHistory();
               }}
-              style={{
-                border: "none",
-                background: "transparent",
-                color: "#2563eb",
-                textDecoration: "underline",
-                padding: 0,
-                cursor: "pointer",
-                fontWeight: 600,
-              }}
+              className="text-sm font-semibold text-blue-700 underline"
             >
               Захиалгын түүх
             </button>
+
             {creditRequestMessage && (
-              <div style={{ fontSize: 12, color: "#166534" }}>{creditRequestMessage}</div>
+              <div className="text-xs text-emerald-700">{creditRequestMessage}</div>
             )}
           </div>
         </section>
@@ -736,39 +627,24 @@ export default function SupplyEshopPage() {
 
       {popupProduct && (
         <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/45 p-4"
           onClick={() => setPopupProduct(null)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.4)",
-            zIndex: 80,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
         >
           <div
+            className="w-full max-w-3xl rounded-xl border border-slate-200 bg-white p-4"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(680px, 100%)",
-              background: "white",
-              borderRadius: 12,
-              padding: 14,
-              border: "1px solid #e5e7eb",
-            }}
           >
-            <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 14 }}>
-              <ProductCarousel images={popupProduct.imagePaths} height={240} />
+            <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+              <ProductCarousel images={popupProduct.imagePaths} heightClassName="h-60" />
               <div>
-                <h3 style={{ margin: 0, marginBottom: 8, fontSize: 22 }}>{popupProduct.name}</h3>
-                <div style={{ color: "#1d4ed8", fontWeight: 700, marginBottom: 8 }}>
+                <h3 className="mb-2 text-2xl font-semibold">{popupProduct.name}</h3>
+                <div className="mb-2 text-lg font-bold text-blue-700">
                   <Price value={popupProduct.price} />
                 </div>
-                <div style={{ fontSize: 14, color: "#334155", marginBottom: 12 }}>
+                <div className="mb-3 text-sm text-slate-700">
                   {popupProduct.description || "Тайлбар оруулаагүй."}
                 </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -779,26 +655,20 @@ export default function SupplyEshopPage() {
                       }
                       addToCartWithFeedback(popupProduct);
                     }}
-                    style={{
-                      border: "none",
-                      borderRadius: 8,
-                      background: "#16a34a",
-                      color: "white",
-                      padding: "8px 14px",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
+                    className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
                   >
-                    {addingProductIds.includes(popupProduct.id)
-                      ? "⏳ Нэмж байна..."
-                      : addedProductIds.includes(popupProduct.id)
-                      ? "Сагс руу очих"
-                      : "Захиалах"}
+                    {addingProductIds.includes(popupProduct.id) ? (
+                      <AddingSpinner />
+                    ) : addedProductIds.includes(popupProduct.id) ? (
+                      "Сагс руу очих"
+                    ) : (
+                      "Захиалах"
+                    )}
                   </button>
                   <button
                     type="button"
                     onClick={() => setPopupProduct(null)}
-                    style={{ borderRadius: 8, padding: "8px 14px", cursor: "pointer" }}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
                   >
                     Хаах
                   </button>
@@ -811,49 +681,29 @@ export default function SupplyEshopPage() {
 
       {checkoutOpen && (
         <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/45 p-4"
           onClick={() => setCheckoutOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.4)",
-            zIndex: 90,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
         >
           <div
+            className="w-full max-w-xl rounded-xl border border-slate-200 bg-white p-4"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(520px, 100%)",
-              background: "white",
-              borderRadius: 12,
-              padding: 14,
-              border: "1px solid #e5e7eb",
-            }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: 10 }}>Checkout confirmation</h3>
-            <div style={{ marginBottom: 10, fontSize: 14 }}>
-              Нийт дүн: <strong><Price value={cartTotal} /></strong>
+            <h3 className="mb-2 text-lg font-semibold">Захиалга баталгаажуулах</h3>
+            <div className="mb-3 text-sm">
+              Нийт дүн:{" "}
+              <span className="font-bold">
+                <Price value={cartTotal} />
+              </span>
             </div>
 
-            <div
-              style={{
-                display: "grid",
-                gap: 10,
-                border: "1px solid #e5e7eb",
-                borderRadius: 8,
-                padding: 10,
-              }}
-            >
-              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div className="grid gap-2 rounded-lg border border-slate-200 p-3">
+              <label className="flex flex-wrap items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={checkoutUseWallet}
                   onChange={(e) => setCheckoutUseWallet(e.target.checked)}
                 />
-                <span style={{ minWidth: 90 }}>Хэтэвч</span>
+                <span className="min-w-20">Кредит</span>
                 <input
                   type="number"
                   min={0}
@@ -861,20 +711,20 @@ export default function SupplyEshopPage() {
                   disabled={!checkoutUseWallet}
                   value={checkoutWalletInput}
                   onChange={(e) => setCheckoutWalletInput(e.target.value)}
-                  style={{ width: 150, padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 6 }}
+                  className="w-36 rounded border border-slate-300 px-2 py-1.5 text-sm"
                 />
-                <span style={{ fontSize: 12, color: "#64748b" }}>
+                <span className="text-xs text-slate-500">
                   (үлдэгдэл: <Price value={walletBalance} />)
                 </span>
               </label>
 
-              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <label className="flex flex-wrap items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={checkoutUseTransfer}
                   onChange={(e) => setCheckoutUseTransfer(e.target.checked)}
                 />
-                <span style={{ minWidth: 90 }}>Шилжүүлэг</span>
+                <span className="min-w-20">Шилжүүлэг</span>
                 <input
                   type="number"
                   min={0}
@@ -882,34 +732,30 @@ export default function SupplyEshopPage() {
                   disabled={!checkoutUseTransfer}
                   value={checkoutTransferInput}
                   onChange={(e) => setCheckoutTransferInput(e.target.value)}
-                  style={{ width: 150, padding: "6px 8px", border: "1px solid #d1d5db", borderRadius: 6 }}
+                  className="w-36 rounded border border-slate-300 px-2 py-1.5 text-sm"
                 />
               </label>
             </div>
 
             {checkoutError && (
-              <div style={{ marginTop: 8, color: "#b91c1c", fontSize: 12 }}>
+              <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
                 {checkoutError}
               </div>
             )}
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 12 }}>
-              <button type="button" onClick={() => setCheckoutOpen(false)}>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCheckoutOpen(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
+              >
                 Болих
               </button>
               <button
                 type="button"
                 onClick={submitCheckout}
                 disabled={checkingOut}
-                style={{
-                  border: "none",
-                  borderRadius: 8,
-                  background: "#0f766e",
-                  color: "white",
-                  padding: "8px 14px",
-                  cursor: checkingOut ? "default" : "pointer",
-                  opacity: checkingOut ? 0.7 : 1,
-                }}
+                className="rounded-lg bg-teal-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-70"
               >
                 {checkingOut ? "Хадгалж байна..." : "Баталгаажуулах"}
               </button>
@@ -920,39 +766,22 @@ export default function SupplyEshopPage() {
 
       {creditPopupOpen && (
         <div
+          className="fixed inset-0 z-[95] flex items-center justify-center bg-slate-900/45 p-4"
           onClick={() => setCreditPopupOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.4)",
-            zIndex: 95,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
         >
           <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-4"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(420px, 100%)",
-              background: "white",
-              borderRadius: 12,
-              padding: 14,
-              border: "1px solid #e5e7eb",
-            }}
           >
-            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Кредит нэмэх</h3>
-            <div style={{ fontSize: 14, color: "#334155", marginBottom: 10 }}>
-              Кредит нэмэх хүсэлт илгээх үү?
-            </div>
-            {creditRequestMessage && (
-              <div style={{ fontSize: 12, color: "#166534", marginBottom: 8 }}>
-                {creditRequestMessage}
-              </div>
-            )}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-              <button type="button" onClick={() => setCreditPopupOpen(false)}>
+            <h3 className="mb-2 text-lg font-semibold">Кредит нэмэх</h3>
+            <p className="mb-3 text-sm text-slate-700">Кредит нэмэх хүсэлт илгээх үү?</p>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCreditPopupOpen(false)}
+                className="rounded-lg border border-slate-300 px-4 py-2 text-sm"
+              >
                 Болих
               </button>
               <button
@@ -961,14 +790,7 @@ export default function SupplyEshopPage() {
                   setCreditRequestMessage("Хүсэлт амжилттай илгээгдлээ.");
                   setCreditPopupOpen(false);
                 }}
-                style={{
-                  border: "none",
-                  borderRadius: 8,
-                  background: "#2563eb",
-                  color: "white",
-                  padding: "8px 12px",
-                  cursor: "pointer",
-                }}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
               >
                 Хүсэлт илгээх
               </button>
@@ -979,77 +801,51 @@ export default function SupplyEshopPage() {
 
       {orderHistoryOpen && (
         <div
+          className="fixed inset-0 z-[96] flex items-center justify-center bg-slate-900/45 p-4"
           onClick={() => setOrderHistoryOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.4)",
-            zIndex: 96,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-          }}
         >
           <div
+            className="max-h-[85vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-slate-200 bg-white p-4"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(760px, 100%)",
-              maxHeight: "85vh",
-              overflowY: "auto",
-              background: "white",
-              borderRadius: 12,
-              padding: 14,
-              border: "1px solid #e5e7eb",
-            }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-              <h3 style={{ marginTop: 0, marginBottom: 10 }}>Захиалгын түүх</h3>
-              <button type="button" onClick={() => setOrderHistoryOpen(false)}>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="text-lg font-semibold">Захиалгын түүх</h3>
+              <button
+                type="button"
+                onClick={() => setOrderHistoryOpen(false)}
+                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm"
+              >
                 Хаах
               </button>
             </div>
+
             {orderHistoryLoading ? (
-              <div style={{ color: "#6b7280" }}>Ачааллаж байна...</div>
+              <div className="text-sm text-slate-600">Ачааллаж байна...</div>
             ) : orderHistoryError ? (
-              <div style={{ color: "#b91c1c", fontSize: 13 }}>{orderHistoryError}</div>
+              <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                {orderHistoryError}
+              </div>
             ) : orderHistory.length === 0 ? (
-              <div style={{ color: "#6b7280" }}>Захиалгын түүх хоосон байна.</div>
+              <div className="text-sm text-slate-600">Захиалгын түүх хоосон байна.</div>
             ) : (
-              <div style={{ display: "grid", gap: 10 }}>
+              <div className="grid gap-3">
                 {orderHistory.map((order) => (
-                  <div
-                    key={order.id}
-                    style={{
-                      border: "1px solid #e5e7eb",
-                      borderRadius: 8,
-                      padding: 10,
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 12,
-                        justifyContent: "space-between",
-                        marginBottom: 8,
-                        fontSize: 13,
-                      }}
-                    >
-                      <strong>#{order.id}</strong>
+                  <div key={order.id} className="rounded-lg border border-slate-200 p-3">
+                    <div className="mb-2 flex flex-wrap justify-between gap-2 text-sm">
+                      <span className="font-semibold">#{order.id}</span>
                       <span>{formatDateTime(order.createdAt)}</span>
                       <span>Төлөв: {order.status}</span>
-                      <span>
+                      <span className="font-semibold">
                         Нийт: <Price value={order.totalAmount} />
                       </span>
                     </div>
-                    <div style={{ fontSize: 12, marginBottom: 6, color: "#334155" }}>
+                    <div className="mb-2 text-xs text-slate-600">
                       Кредит: <Price value={order.walletAmount} />, Шилжүүлэг:{" "}
                       <Price value={order.transferAmount} />
                     </div>
-                    <div style={{ display: "grid", gap: 4 }}>
+                    <div className="grid gap-1">
                       {order.items.map((item) => (
-                        <div key={item.id} style={{ fontSize: 12, color: "#334155" }}>
+                        <div key={item.id} className="text-xs text-slate-700">
                           • {item.product?.name || `Product #${item.productId}`} — {item.qty} x{" "}
                           <Price value={item.unitPrice} /> = <Price value={item.lineTotal} />
                         </div>
