@@ -9,7 +9,10 @@ export default function PublicHeader() {
         height={36}
         className="shrink-0"
       />
-      <span className="text-lg font-semibold tracking-wide">M Dent Software Solution</span>
+      <span className="text-lg font-semibold tracking-wide">
+        <span className="sm:hidden">M Dent</span>
+        <span className="hidden sm:inline">M Dent Software Solution</span>
+      </span>
     </header>
   );
 }
