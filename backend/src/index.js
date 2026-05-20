@@ -75,6 +75,8 @@ import {
 import rateLimit from "express-rate-limit";
 import { autoCloseOpenAttendanceSessions } from "./services/attendanceAutoClose.js";
 import { cleanupExpiredOnlineBookingDrafts } from "./services/onlineBookingDraftCleanup.js";
+import { cleanupExpiredAttendanceAttempts } from "./services/attendanceAttemptCleanup.js";
+import { parseAttendanceAttemptRetentionDays } from "./utils/attendanceAttemptRetention.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -409,6 +411,57 @@ app.listen(port, () => {
     }, intervalMs);
     timer.unref?.();
     log.info({ intervalMs }, "attendance auto-close job started");
+  }
+
+  const attendanceAttemptCleanupDisabled =
+    process.env.DISABLE_ATTENDANCE_ATTEMPT_CLEANUP_JOB === "true";
+  const attendanceAttemptCleanupIntervalRaw = Number(
+    process.env.ATTENDANCE_ATTEMPT_CLEANUP_INTERVAL_MS
+  );
+  const attendanceAttemptCleanupIntervalMs =
+    Number.isFinite(attendanceAttemptCleanupIntervalRaw) &&
+    attendanceAttemptCleanupIntervalRaw > 0
+      ? attendanceAttemptCleanupIntervalRaw
+      : 60_000;
+  const attendanceAttemptRetentionDays = parseAttendanceAttemptRetentionDays(
+    process.env.ATTENDANCE_ATTEMPT_RETENTION_DAYS
+  );
+
+  if (attendanceAttemptCleanupDisabled) {
+    log.info("attendance attempt cleanup job disabled");
+  } else {
+    const runAttendanceAttemptCleanup = async () => {
+      try {
+        const result = await cleanupExpiredAttendanceAttempts({
+          retentionDays: attendanceAttemptRetentionDays,
+        });
+        if (result.deletedCount > 0) {
+          log.info(
+            {
+              deletedCount: result.deletedCount,
+              retentionDays: result.retentionDays,
+              cutoff: result.cutoff.toISOString(),
+            },
+            "attendance attempt cleanup applied"
+          );
+        }
+      } catch (err) {
+        log.error({ err }, "attendance attempt cleanup job failed");
+      }
+    };
+
+    void runAttendanceAttemptCleanup();
+    const attendanceAttemptCleanupTimer = setInterval(() => {
+      void runAttendanceAttemptCleanup();
+    }, attendanceAttemptCleanupIntervalMs);
+    attendanceAttemptCleanupTimer.unref?.();
+    log.info(
+      {
+        intervalMs: attendanceAttemptCleanupIntervalMs,
+        retentionDays: attendanceAttemptRetentionDays,
+      },
+      "attendance attempt cleanup job started"
+    );
   }
 
   const onlineDraftCleanupDisabled =
