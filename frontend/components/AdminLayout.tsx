@@ -727,14 +727,13 @@ useEffect(() => {
   style={{ height: 34, width: "auto", display: "block" }}
 />
 
-            <span
-              style={{
-                fontWeight: 600,
-                fontSize: 22,
-              }}
-            >
-              <span style={{ color: "#f97316" }}>M</span> Dent Software
-              Solution
+            <span className="font-semibold text-base sm:text-[22px]">
+              <span className="sm:hidden">
+                <span style={{ color: "#f97316" }}>M</span> Dent
+              </span>
+              <span className="hidden sm:inline">
+                <span style={{ color: "#f97316" }}>M</span> Dent Software Solution
+              </span>
             </span>
           </div>
 

@@ -19,10 +19,17 @@ import {
 } from "../utils/attendanceWorkRules.js";
 import { canAccessAttendanceAdminFeatures } from "../utils/attendanceAccess.js";
 import { autoCloseOpenAttendanceSessions } from "../services/attendanceAutoClose.js";
+import {
+  getAttendanceAttemptRetentionCutoff,
+  parseAttendanceAttemptRetentionDays,
+} from "../utils/attendanceAttemptRetention.js";
 
 const router = express.Router();
 
 const MONGOLIA_OFFSET_MS = 8 * 60 * 60_000; // UTC+8
+const ATTENDANCE_ATTEMPT_RETENTION_DAYS = parseAttendanceAttemptRetentionDays(
+  process.env.ATTENDANCE_ATTEMPT_RETENTION_DAYS
+);
 
 /**
  * Validate and parse geo body { lat, lng, accuracyM }.
@@ -509,7 +516,13 @@ router.get("/attempts", async (req, res) => {
     const branchId = req.query.branchId ? Number(req.query.branchId) : null;
     const result = req.query.result ? String(req.query.result) : null;
 
-    const where = {};
+    const where = {
+      attemptAt: {
+        gte: getAttendanceAttemptRetentionCutoff({
+          retentionDays: ATTENDANCE_ATTEMPT_RETENTION_DAYS,
+        }),
+      },
+    };
     if (userId) where.userId = userId;
     if (branchId) where.branchId = branchId;
     if (result === ATTENDANCE_ATTEMPT_RESULT.SUCCESS || result === ATTENDANCE_ATTEMPT_RESULT.FAIL) {
