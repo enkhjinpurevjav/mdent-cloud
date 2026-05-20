@@ -27,8 +27,34 @@ type CartItem = {
   qty: number;
 };
 
+type SupplyOrderHistory = {
+  id: number;
+  totalAmount: number;
+  walletAmount: number;
+  transferAmount: number;
+  status: string;
+  createdAt: string;
+  items: Array<{
+    id: number;
+    productId: number;
+    qty: number;
+    unitPrice: number;
+    lineTotal: number;
+    product?: {
+      id: number;
+      name: string;
+    };
+  }>;
+};
+
 function Price({ value }: { value: number }) {
   return <>{Number(value).toLocaleString("mn-MN")} ₮</>;
+}
+
+function formatDateTime(iso: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString("mn-MN");
 }
 
 function ProductCarousel({
@@ -144,6 +170,14 @@ export default function SupplyEshopPage() {
   const [checkoutError, setCheckoutError] = useState("");
   const [checkoutSuccess, setCheckoutSuccess] = useState("");
   const [checkingOut, setCheckingOut] = useState(false);
+  const [addingProductIds, setAddingProductIds] = useState<number[]>([]);
+  const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
+  const [creditPopupOpen, setCreditPopupOpen] = useState(false);
+  const [creditRequestMessage, setCreditRequestMessage] = useState("");
+  const [orderHistoryOpen, setOrderHistoryOpen] = useState(false);
+  const [orderHistoryLoading, setOrderHistoryLoading] = useState(false);
+  const [orderHistoryError, setOrderHistoryError] = useState("");
+  const [orderHistory, setOrderHistory] = useState<SupplyOrderHistory[]>([]);
 
   const loadCategories = async () => {
     try {
@@ -211,6 +245,24 @@ export default function SupplyEshopPage() {
     }
   };
 
+  const loadOrderHistory = async () => {
+    setOrderHistoryLoading(true);
+    setOrderHistoryError("");
+    try {
+      const res = await fetch("/api/supply/orders?limit=30");
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((data && data.error) || "Захиалгын түүх ачаалж чадсангүй.");
+      }
+      setOrderHistory(Array.isArray(data) ? data : []);
+    } catch (e: any) {
+      setOrderHistory([]);
+      setOrderHistoryError(e.message || "Захиалгын түүх ачаалж чадсангүй.");
+    } finally {
+      setOrderHistoryLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!canManage) return;
     void Promise.all([loadCategories(), loadLatestProducts(), loadWallet()]);
@@ -227,6 +279,13 @@ export default function SupplyEshopPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategoryId, canManage]);
 
+  useEffect(() => {
+    if (!canManage) return;
+    if (activeTab !== "account") return;
+    void loadOrderHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, canManage]);
+
   const addToCart = (product: SupplyProduct) => {
     setCartItems((prev) => {
       const idx = prev.findIndex((x) => x.product.id === product.id);
@@ -235,6 +294,22 @@ export default function SupplyEshopPage() {
       next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
       return next;
     });
+  };
+
+  const addToCartWithFeedback = (product: SupplyProduct) => {
+    const productId = product.id;
+    if (addingProductIds.includes(productId)) return;
+    if (addedProductIds.includes(productId)) {
+      setActiveTab("cart");
+      return;
+    }
+
+    setAddingProductIds((prev) => [...prev, productId]);
+    window.setTimeout(() => {
+      addToCart(product);
+      setAddingProductIds((prev) => prev.filter((id) => id !== productId));
+      setAddedProductIds((prev) => (prev.includes(productId) ? prev : [...prev, productId]));
+    }, 320);
   };
 
   const changeQty = (productId: number, nextQty: number) => {
@@ -460,7 +535,13 @@ export default function SupplyEshopPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => addToCart(product)}
+                    onClick={() => {
+                      if (addedProductIds.includes(product.id)) {
+                        setActiveTab("cart");
+                        return;
+                      }
+                      addToCartWithFeedback(product);
+                    }}
                     style={{
                       marginTop: 8,
                       width: "100%",
@@ -473,7 +554,11 @@ export default function SupplyEshopPage() {
                       fontWeight: 600,
                     }}
                   >
-                    Захиалах
+                    {addingProductIds.includes(product.id)
+                      ? "⏳ Нэмж байна..."
+                      : addedProductIds.includes(product.id)
+                      ? "Сагс руу очих"
+                      : "Захиалах"}
                   </button>
                 </div>
               ))}
@@ -569,7 +654,7 @@ export default function SupplyEshopPage() {
                     fontWeight: 600,
                   }}
                 >
-                  Check out
+                  Захиалга үүсгэх
                 </button>
               </div>
             </>
@@ -601,9 +686,50 @@ export default function SupplyEshopPage() {
               <strong>Эрх:</strong> {me?.role || "-"}
             </div>
             <div>
-              <strong>Хэтэвчийн үлдэгдэл:</strong>{" "}
+              <strong>Кредит:</strong>{" "}
               {walletLoading ? "Ачааллаж байна..." : <Price value={walletBalance} />}
             </div>
+          </div>
+          <div style={{ marginTop: 12, display: "grid", gap: 8, justifyItems: "start" }}>
+            <button
+              type="button"
+              onClick={() => {
+                setCreditRequestMessage("");
+                setCreditPopupOpen(true);
+              }}
+              style={{
+                border: "none",
+                borderRadius: 8,
+                background: "#2563eb",
+                color: "white",
+                padding: "8px 12px",
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Кредит нэмэх
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOrderHistoryOpen(true);
+                void loadOrderHistory();
+              }}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "#2563eb",
+                textDecoration: "underline",
+                padding: 0,
+                cursor: "pointer",
+                fontWeight: 600,
+              }}
+            >
+              Захиалгын түүх
+            </button>
+            {creditRequestMessage && (
+              <div style={{ fontSize: 12, color: "#166534" }}>{creditRequestMessage}</div>
+            )}
           </div>
         </section>
       )}
@@ -645,7 +771,14 @@ export default function SupplyEshopPage() {
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
                     type="button"
-                    onClick={() => addToCart(popupProduct)}
+                    onClick={() => {
+                      if (addedProductIds.includes(popupProduct.id)) {
+                        setPopupProduct(null);
+                        setActiveTab("cart");
+                        return;
+                      }
+                      addToCartWithFeedback(popupProduct);
+                    }}
                     style={{
                       border: "none",
                       borderRadius: 8,
@@ -656,7 +789,11 @@ export default function SupplyEshopPage() {
                       fontWeight: 600,
                     }}
                   >
-                    Захиалах
+                    {addingProductIds.includes(popupProduct.id)
+                      ? "⏳ Нэмж байна..."
+                      : addedProductIds.includes(popupProduct.id)
+                      ? "Сагс руу очих"
+                      : "Захиалах"}
                   </button>
                   <button
                     type="button"
@@ -777,6 +914,151 @@ export default function SupplyEshopPage() {
                 {checkingOut ? "Хадгалж байна..." : "Баталгаажуулах"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {creditPopupOpen && (
+        <div
+          onClick={() => setCreditPopupOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.4)",
+            zIndex: 95,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(420px, 100%)",
+              background: "white",
+              borderRadius: 12,
+              padding: 14,
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: 8 }}>Кредит нэмэх</h3>
+            <div style={{ fontSize: 14, color: "#334155", marginBottom: 10 }}>
+              Кредит нэмэх хүсэлт илгээх үү?
+            </div>
+            {creditRequestMessage && (
+              <div style={{ fontSize: 12, color: "#166534", marginBottom: 8 }}>
+                {creditRequestMessage}
+              </div>
+            )}
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button type="button" onClick={() => setCreditPopupOpen(false)}>
+                Болих
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCreditRequestMessage("Хүсэлт амжилттай илгээгдлээ.");
+                  setCreditPopupOpen(false);
+                }}
+                style={{
+                  border: "none",
+                  borderRadius: 8,
+                  background: "#2563eb",
+                  color: "white",
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                }}
+              >
+                Хүсэлт илгээх
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {orderHistoryOpen && (
+        <div
+          onClick={() => setOrderHistoryOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15,23,42,0.4)",
+            zIndex: 96,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(760px, 100%)",
+              maxHeight: "85vh",
+              overflowY: "auto",
+              background: "white",
+              borderRadius: 12,
+              padding: 14,
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+              <h3 style={{ marginTop: 0, marginBottom: 10 }}>Захиалгын түүх</h3>
+              <button type="button" onClick={() => setOrderHistoryOpen(false)}>
+                Хаах
+              </button>
+            </div>
+            {orderHistoryLoading ? (
+              <div style={{ color: "#6b7280" }}>Ачааллаж байна...</div>
+            ) : orderHistoryError ? (
+              <div style={{ color: "#b91c1c", fontSize: 13 }}>{orderHistoryError}</div>
+            ) : orderHistory.length === 0 ? (
+              <div style={{ color: "#6b7280" }}>Захиалгын түүх хоосон байна.</div>
+            ) : (
+              <div style={{ display: "grid", gap: 10 }}>
+                {orderHistory.map((order) => (
+                  <div
+                    key={order.id}
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: 8,
+                      padding: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 12,
+                        justifyContent: "space-between",
+                        marginBottom: 8,
+                        fontSize: 13,
+                      }}
+                    >
+                      <strong>#{order.id}</strong>
+                      <span>{formatDateTime(order.createdAt)}</span>
+                      <span>Төлөв: {order.status}</span>
+                      <span>
+                        Нийт: <Price value={order.totalAmount} />
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, marginBottom: 6, color: "#334155" }}>
+                      Кредит: <Price value={order.walletAmount} />, Шилжүүлэг:{" "}
+                      <Price value={order.transferAmount} />
+                    </div>
+                    <div style={{ display: "grid", gap: 4 }}>
+                      {order.items.map((item) => (
+                        <div key={item.id} style={{ fontSize: 12, color: "#334155" }}>
+                          • {item.product?.name || `Product #${item.productId}`} — {item.qty} x{" "}
+                          <Price value={item.unitPrice} /> = <Price value={item.lineTotal} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

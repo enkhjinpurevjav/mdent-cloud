@@ -562,4 +562,42 @@ router.post("/checkout", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/supply/orders?limit=20
+ * Returns current user's supply order history.
+ */
+router.get("/orders", async (req, res) => {
+  try {
+    const userId = Number(req.user?.id);
+    if (!userId || Number.isNaN(userId)) {
+      return res.status(401).json({ error: "Authentication required." });
+    }
+
+    const limit = parseLimit(req.query.limit) ?? 20;
+    const orders = await prisma.supplyOrder.findMany({
+      where: { createdByUserId: userId },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { id: true, name: true },
+            },
+          },
+          orderBy: { id: "asc" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
+
+    return res.json(orders);
+  } catch (e) {
+    console.error("GET /api/supply/orders failed", e);
+    if (e.message?.includes("limit")) {
+      return res.status(400).json({ error: e.message });
+    }
+    return res.status(500).json({ error: "internal server error" });
+  }
+});
+
 export default router;
