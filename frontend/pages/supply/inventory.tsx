@@ -172,7 +172,7 @@ export default function SupplyInventoryPage() {
   if (!canManage) {
     return (
       <main className="mx-auto my-4 max-w-[1320px] p-6">
-        <h1 className="mb-3 text-2xl font-semibold">Мараа материалын нөөц</h1>
+        <h1 className="mb-3 text-2xl font-semibold">Бараа материалын нөөц</h1>
         <div className="text-sm text-red-700">Хандах эрхгүй.</div>
       </main>
     );
@@ -182,7 +182,7 @@ export default function SupplyInventoryPage() {
     <main className="mx-auto my-4 max-w-[1320px] p-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold">Мараа материалын нөөц</h1>
+          <h1 className="text-2xl font-semibold">Бараа материалын нөөц</h1>
           <p className="mt-1 text-sm text-slate-600">
             Ангиллаар бүлэглэсэн нөөц: эхний үлдэгдэл, нэмэлт захиалга, нийт, хэрэглэсэн, одоогийн.
           </p>
