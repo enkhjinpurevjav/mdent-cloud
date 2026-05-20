@@ -841,6 +841,7 @@ model User {
 
   supplyOrders             SupplyOrder[]
   supplyWalletTransactions SupplyWalletTransaction[]
+  supplyInventoryUpdates   SupplyInventory[] @relation("SupplyInventoryUpdatedBy")
 
   createdPatients   Patient[] @relation("PatientCreator")
   updatedPatients   Patient[] @relation("PatientUpdater")
@@ -1455,9 +1456,26 @@ model SupplyProduct {
 
   category SupplyCategory @relation(fields: [categoryId], references: [id])
   orderItems SupplyOrderItem[]
+  inventory  SupplyInventory?
 
   @@index([isActive])
   @@index([categoryId])
+}
+
+model SupplyInventory {
+  id              Int      @id @default(autoincrement())
+  productId       Int      @unique
+  openingBalance  Float    @default(0)
+  consumed        Float    @default(0)
+  updatedByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  product   SupplyProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  updatedBy User?         @relation("SupplyInventoryUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+  @@index([updatedAt])
 }
 
 model SupplyWallet {
