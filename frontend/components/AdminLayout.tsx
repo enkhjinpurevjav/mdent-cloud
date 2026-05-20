@@ -195,7 +195,7 @@ const navItems: NavItem[] = [
     icon: "🛒",
     children: [
       { label: "e-Shop", href: "/supply/eshop", icon: "🛍️" },
-      { label: "Мараа материалын нөөц", href: "/supply/inventory", icon: "📊" },
+      { label: "Бараа материалын нөөц", href: "/supply/inventory", icon: "📊" },
       { label: "Бусад", href: "/supply/others", icon: "📦" },
     ],
   },
