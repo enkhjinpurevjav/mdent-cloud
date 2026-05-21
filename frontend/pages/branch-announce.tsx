@@ -119,11 +119,13 @@ export default function BranchAnnouncePage() {
         if (res.status === 403) {
           throw new Error("Энэ үйлдлийг хийх эрхгүй байна.");
         }
-        throw new Error(
-          data?.code === "BRIDGE_NOT_CONFIGURED"
-            ? "Speaker bridge тохируулаагүй байна."
-            : data?.error || "Зар хүргэхэд алдаа гарлаа."
-        );
+        if (data?.code === "BRIDGE_NOT_CONFIGURED") {
+          const missing = Array.isArray(data?.missingConfig) && data.missingConfig.length
+            ? " Дутуу тохиргоо: " + data.missingConfig.join(", ") + "."
+            : "";
+          throw new Error("Speaker bridge тохируулаагүй байна." + missing);
+        }
+        throw new Error(data?.error || "Зар хүргэхэд алдаа гарлаа.");
       }
 
       setSuccess("Зар илгээгдлээ: " + (data?.message || trimmedMessage));
