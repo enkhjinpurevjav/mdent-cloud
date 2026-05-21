@@ -65,7 +65,6 @@ import doctorIncomeReportRouter from "./routes/admin/doctorIncomeReport.js";
 import backfillRegnoRouter from "./routes/admin/backfillRegno.js";
 import checkInRouter from "./routes/check-in.js";
 import branchKioskRouter from "./routes/branch.js";
-import branchAnnounceRouter from "./routes/branch-announce.js";
 import announcementsRouter from "./routes/announcements.js";
 import {
   authenticateJWT,
@@ -293,7 +292,6 @@ app.use("/api/check-in", checkInRouter);
 app.use("/api/branch", branchKioskRouter);
 
 // Existing routers
-app.use("/api/branch-announce", branchAnnounceRouter);
 app.use("/api/login", loginRouter);
 app.use("/api/branches", branchesRouter);
 app.use("/api/patients", patientsRouter);
