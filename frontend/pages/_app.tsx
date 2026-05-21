@@ -46,6 +46,10 @@ function isBranchNurseKioskPath(pathname: string) {
   return pathname === "/branch-nurse" || pathname.startsWith("/branch-nurse/");
 }
 
+function isBranchAnnouncePath(pathname: string) {
+  return pathname === "/branch-announce";
+}
+
 function isAppointmentsPath(pathname: string) {
   return (
     pathname === "/appointments" ||
@@ -355,6 +359,12 @@ function AppContent({ Component, pageProps }: AppProps) {
         <Component {...pageProps} />
       </AdminLayout>
     );
+  }
+
+  // Single-branch announcement page: protected, but intentionally not part of
+  // the reception/admin portals.
+  if (isBranchAnnouncePath(router.pathname)) {
+    return <Component {...pageProps} />;
   }
 
   return renderWithPopup(
