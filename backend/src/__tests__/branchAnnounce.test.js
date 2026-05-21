@@ -2,38 +2,38 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import {
-  buildBranchAnnouncementMessage,
+  normalizeBranchAnnouncementMessage,
   speakViaHomeAssistant,
 } from "../routes/branch-announce.js";
 
-describe("branch announcement message builder", () => {
-  it("builds the hard-coded Mongolian arrival sentence", () => {
-    const message = buildBranchAnnouncementMessage({
-      doctor: "khaliunaa",
-      relation: "doctor_possessive",
-      subject: "patient",
-      status: "arrived",
-    });
+const defaultMessage = "Халиунаа эмчийн үйлчлүүлэгч ирлээ";
 
-    assert.equal(message, "Халиунаа эмчийн үйлчлүүлэгч ирлээ");
+describe("branch announcement message validation", () => {
+  it("accepts custom Mongolian announcement text", () => {
+    assert.equal(
+      normalizeBranchAnnouncementMessage("  Халиунаа эмчийн үйлчлүүлэгч ирлээ  "),
+      defaultMessage
+    );
   });
 
-  it("rejects text that is not one of the hard-coded parts", () => {
-    assert.throws(
-      () =>
-        buildBranchAnnouncementMessage({
-          doctor: "custom_doctor",
-          relation: "doctor_possessive",
-          subject: "patient",
-          status: "arrived",
-        }),
-      /Invalid announcement parts/
+  it("normalizes repeated whitespace", () => {
+    assert.equal(
+      normalizeBranchAnnouncementMessage("Халиунаа\nэмчийн   үйлчлүүлэгч\tирлээ"),
+      defaultMessage
     );
+  });
+
+  it("rejects blank text", () => {
+    assert.throws(() => normalizeBranchAnnouncementMessage("   "), /required/);
+  });
+
+  it("rejects text over the maximum length", () => {
+    assert.throws(() => normalizeBranchAnnouncementMessage("а".repeat(181)), /too long/);
   });
 });
 
 describe("branch announcement Home Assistant bridge", () => {
-  it("posts the generated message to the configured tts.speak service", async () => {
+  it("posts the custom message to the configured tts.speak service", async () => {
     const requests = [];
     const server = http.createServer((req, res) => {
       let body = "";
@@ -57,7 +57,7 @@ describe("branch announcement Home Assistant bridge", () => {
     const { port } = server.address();
 
     try {
-      await speakViaHomeAssistant("Халиунаа эмчийн үйлчлүүлэгч ирлээ", {
+      await speakViaHomeAssistant(defaultMessage, {
         baseUrl: `http://127.0.0.1:${port}`,
         token: "test-token",
         ttsEntityId: "tts.branch_mn",
@@ -74,7 +74,7 @@ describe("branch announcement Home Assistant bridge", () => {
     assert.deepEqual(requests[0].body, {
       entity_id: "tts.branch_mn",
       media_player_entity_id: "media_player.doctors_room",
-      message: "Халиунаа эмчийн үйлчлүүлэгч ирлээ",
+      message: defaultMessage,
     });
   });
 });
