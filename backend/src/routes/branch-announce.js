@@ -4,6 +4,12 @@ import { requireRole } from "../middleware/auth.js";
 const router = Router();
 
 export const ANNOUNCEMENT_MAX_LENGTH = 180;
+const HOME_ASSISTANT_ENV_KEYS = [
+  "HOME_ASSISTANT_URL",
+  "HOME_ASSISTANT_TOKEN",
+  "HOME_ASSISTANT_TTS_ENTITY_ID",
+  "HOME_ASSISTANT_MEDIA_PLAYER_ENTITY_ID",
+];
 
 export function normalizeBranchAnnouncementMessage(input) {
   if (typeof input !== "string") {
@@ -21,28 +27,40 @@ export function normalizeBranchAnnouncementMessage(input) {
   return message;
 }
 
-function getHomeAssistantConfig() {
-  const baseUrl = (process.env.HOME_ASSISTANT_URL || "").replace(/\/+$/, "");
-  const token = process.env.HOME_ASSISTANT_TOKEN || "";
-  const ttsEntityId = process.env.HOME_ASSISTANT_TTS_ENTITY_ID || "";
-  const mediaPlayerEntityId = process.env.HOME_ASSISTANT_MEDIA_PLAYER_ENTITY_ID || "";
-
-  if (!baseUrl || !token || !ttsEntityId || !mediaPlayerEntityId) {
-    return null;
-  }
+export function getHomeAssistantConfigStatus(env = process.env) {
+  const baseUrl = (env.HOME_ASSISTANT_URL || "").replace(/\/+$/, "");
+  const token = env.HOME_ASSISTANT_TOKEN || "";
+  const ttsEntityId = env.HOME_ASSISTANT_TTS_ENTITY_ID || "";
+  const mediaPlayerEntityId = env.HOME_ASSISTANT_MEDIA_PLAYER_ENTITY_ID || "";
+  const values = {
+    HOME_ASSISTANT_URL: baseUrl,
+    HOME_ASSISTANT_TOKEN: token,
+    HOME_ASSISTANT_TTS_ENTITY_ID: ttsEntityId,
+    HOME_ASSISTANT_MEDIA_PLAYER_ENTITY_ID: mediaPlayerEntityId,
+  };
+  const missing = HOME_ASSISTANT_ENV_KEYS.filter((key) => !values[key]);
 
   return {
-    baseUrl,
-    token,
-    ttsEntityId,
-    mediaPlayerEntityId,
+    missing,
+    config: missing.length
+      ? null
+      : {
+          baseUrl,
+          token,
+          ttsEntityId,
+          mediaPlayerEntityId,
+        },
   };
 }
 
-export async function speakViaHomeAssistant(message, config = getHomeAssistantConfig()) {
+export async function speakViaHomeAssistant(
+  message,
+  config = getHomeAssistantConfigStatus().config
+) {
   if (!config) {
     const err = new Error("Branch announcement speaker bridge is not configured.");
     err.code = "BRIDGE_NOT_CONFIGURED";
+    err.missingConfig = getHomeAssistantConfigStatus().missing;
     throw err;
   }
 
@@ -89,6 +107,7 @@ router.post(
         return res.status(503).json({
           error: "Branch announcement speaker bridge is not configured.",
           code: err.code,
+          missingConfig: err.missingConfig || [],
           message,
         });
       }

@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import {
+  getHomeAssistantConfigStatus,
   normalizeBranchAnnouncementMessage,
   speakViaHomeAssistant,
 } from "../routes/branch-announce.js";
@@ -33,6 +34,19 @@ describe("branch announcement message validation", () => {
 });
 
 describe("branch announcement Home Assistant bridge", () => {
+  it("reports missing speaker bridge environment keys", () => {
+    const status = getHomeAssistantConfigStatus({
+      HOME_ASSISTANT_URL: "http://homeassistant.local:8123",
+      HOME_ASSISTANT_TOKEN: "test-token",
+    });
+
+    assert.equal(status.config, null);
+    assert.deepEqual(status.missing, [
+      "HOME_ASSISTANT_TTS_ENTITY_ID",
+      "HOME_ASSISTANT_MEDIA_PLAYER_ENTITY_ID",
+    ]);
+  });
+
   it("posts the custom message to the configured tts.speak service", async () => {
     const requests = [];
     const server = http.createServer((req, res) => {
