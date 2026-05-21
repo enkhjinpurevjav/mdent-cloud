@@ -3,33 +3,22 @@ import { requireRole } from "../middleware/auth.js";
 
 const router = Router();
 
-export const ANNOUNCE_PARTS = {
-  doctor: [{ id: "khaliunaa", label: "Халиунаа" }],
-  relation: [{ id: "doctor_possessive", label: "эмчийн" }],
-  subject: [{ id: "patient", label: "үйлчлүүлэгч" }],
-  status: [{ id: "arrived", label: "ирлээ" }],
-};
+export const ANNOUNCEMENT_MAX_LENGTH = 180;
 
-const REQUIRED_PART_KEYS = ["doctor", "relation", "subject", "status"];
-
-function findPart(groupKey, partId) {
-  return ANNOUNCE_PARTS[groupKey]?.find((part) => part.id === partId) || null;
-}
-
-export function buildBranchAnnouncementMessage(parts) {
-  if (!parts || typeof parts !== "object" || Array.isArray(parts)) {
-    throw new Error("Invalid announcement parts.");
+export function normalizeBranchAnnouncementMessage(input) {
+  if (typeof input !== "string") {
+    throw new Error("Announcement message is required.");
   }
 
-  const selected = REQUIRED_PART_KEYS.map((key) => {
-    const part = findPart(key, parts[key]);
-    if (!part) {
-      throw new Error("Invalid announcement parts.");
-    }
-    return part.label;
-  });
+  const message = input.replace(/\s+/g, " ").trim();
+  if (!message) {
+    throw new Error("Announcement message is required.");
+  }
+  if (message.length > ANNOUNCEMENT_MAX_LENGTH) {
+    throw new Error("Announcement message is too long.");
+  }
 
-  return selected.join(" ");
+  return message;
 }
 
 function getHomeAssistantConfig() {
@@ -57,10 +46,10 @@ export async function speakViaHomeAssistant(message, config = getHomeAssistantCo
     throw err;
   }
 
-  const res = await fetch(`${config.baseUrl}/api/services/tts/speak`, {
+  const res = await fetch(config.baseUrl + "/api/services/tts/speak", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${config.token}`,
+      Authorization: "Bearer " + config.token,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -73,7 +62,7 @@ export async function speakViaHomeAssistant(message, config = getHomeAssistantCo
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     const err = new Error(
-      body || `Home Assistant TTS request failed with HTTP ${res.status}.`
+      body || "Home Assistant TTS request failed with HTTP " + res.status + "."
     );
     err.code = "BRIDGE_REQUEST_FAILED";
     err.status = res.status;
@@ -87,9 +76,9 @@ router.post(
   async (req, res) => {
     let message;
     try {
-      message = buildBranchAnnouncementMessage(req.body?.parts);
-    } catch {
-      return res.status(400).json({ error: "Invalid announcement parts." });
+      message = normalizeBranchAnnouncementMessage(req.body?.message);
+    } catch (err) {
+      return res.status(400).json({ error: err?.message || "Invalid announcement message." });
     }
 
     try {
