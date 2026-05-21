@@ -78,6 +78,7 @@ import { autoCloseOpenAttendanceSessions } from "./services/attendanceAutoClose.
 import { cleanupExpiredOnlineBookingDrafts } from "./services/onlineBookingDraftCleanup.js";
 import { cleanupExpiredAttendanceAttempts } from "./services/attendanceAttemptCleanup.js";
 import { parseAttendanceAttemptRetentionDays } from "./utils/attendanceAttemptRetention.js";
+import { isBranchKioskApiPath } from "./utils/apiAuthPaths.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info" });
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -217,8 +218,8 @@ app.use("/api", (req, res, next) => {
   if (req.path.startsWith("/public")) return next();
   // Skip /api/check-in — public tablet endpoints, no login required
   if (req.path.startsWith("/check-in")) return next();
-  // Skip /api/branch — branch kiosk router handles its own authentication per-route
-  if (req.path.startsWith("/branch")) return next();
+  // Skip /api/branch and /api/branch/* — branch kiosk router handles its own authentication per-route.
+  if (isBranchKioskApiPath(req.path)) return next();
   return authenticateJWT(req, res, next);
 });
 
