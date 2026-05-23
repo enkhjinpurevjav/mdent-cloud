@@ -1,4 +1,5 @@
 import Head from "next/head";
+import Script from "next/script";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -18,6 +19,8 @@ type AnnouncementGroup = {
 const NAVY = "#131a29";
 const ORANGE = "#f97316";
 const MAX_MESSAGE_LENGTH = 180;
+const CAST_SDK_URL =
+  "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1";
 
 const ANNOUNCEMENT_GROUPS: AnnouncementGroup[] = [
   {
@@ -73,11 +76,14 @@ function getMongolianVoice(voices: SpeechSynthesisVoice[]) {
   return voices.find((voice) => voice.lang.toLowerCase().startsWith("mn")) || null;
 }
 
+type CastStatus = "unavailable" | "ready" | "connected";
+
 export default function BranchAnnouncePage() {
   const { me, loading } = useAuth();
   const [parts, setParts] = useState<Record<PartKey, string>>(INITIAL_PARTS);
   const [message, setMessage] = useState(() => buildQuickMessage(INITIAL_PARTS));
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [castStatus, setCastStatus] = useState<CastStatus>("unavailable");
   const [speaking, setSpeaking] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -97,6 +103,48 @@ export default function BranchAnnouncePage() {
       window.speechSynthesis.cancel();
       window.speechSynthesis.removeEventListener?.("voiceschanged", loadVoices);
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const initializeCast = () => {
+      const castFramework = window.cast?.framework;
+      const chromeCast = window.chrome?.cast;
+      if (!castFramework || !chromeCast) return;
+
+      const context = castFramework.CastContext.getInstance();
+      context.setOptions({
+        receiverApplicationId: chromeCast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+        autoJoinPolicy: chromeCast.AutoJoinPolicy.ORIGIN_SCOPED,
+      });
+
+      const updateStatus = () => {
+        const state = context.getSessionState?.();
+        setCastStatus(
+          state === castFramework.SessionState.SESSION_STARTED ||
+            state === castFramework.SessionState.SESSION_RESUMED
+            ? "connected"
+            : "ready"
+        );
+      };
+
+      updateStatus();
+      if (!window.__branchAnnounceCastListenerAttached) {
+        context.addEventListener(
+          castFramework.CastContextEventType.SESSION_STATE_CHANGED,
+          updateStatus
+        );
+        window.__branchAnnounceCastListenerAttached = true;
+      }
+    };
+
+    window.__onGCastApiAvailable = (isAvailable: boolean) => {
+      if (!isAvailable) return;
+      initializeCast();
+    };
+
+    initializeCast();
   }, []);
 
   function rebuildFromParts(nextParts: Record<PartKey, string>) {
@@ -185,6 +233,7 @@ export default function BranchAnnouncePage() {
         <title>Branch announce</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
+      <Script src={CAST_SDK_URL} strategy="afterInteractive" />
 
       <main className="min-h-[100dvh] bg-gray-100 text-gray-900">
         <header className="h-14 text-white shadow-sm" style={{ background: NAVY }}>
@@ -222,13 +271,25 @@ export default function BranchAnnouncePage() {
                   Доорх товчнууд өгүүлбэрийг хурдан үүсгэнэ. Текст хэсгийг гараар засаж болно. Tablet audio Nest speaker рүү cast хийгдсэн үед Nest дээр сонсогдоно.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={useDefaultSentence}
-                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
-              >
-                Default sentence
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={useDefaultSentence}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                >
+                  Default sentence
+                </button>
+                <div className="flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 shadow-sm">
+                  <google-cast-launcher className="h-6 w-6" />
+                  <span className="text-xs font-bold text-gray-600">
+                    {castStatus === "connected"
+                      ? "Nest connected"
+                      : castStatus === "ready"
+                        ? "Tap to cast"
+                        : "Cast loading"}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
