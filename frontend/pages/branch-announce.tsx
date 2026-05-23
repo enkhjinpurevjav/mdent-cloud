@@ -3,15 +3,13 @@ import Script from "next/script";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
-type PartKey = "doctor" | "relation" | "subject" | "status";
-
 type AnnouncementPart = {
   id: string;
   label: string;
 };
 
 type AnnouncementGroup = {
-  key: PartKey;
+  key: string;
   title: string;
   options: AnnouncementPart[];
 };
@@ -26,40 +24,47 @@ const ANNOUNCEMENT_GROUPS: AnnouncementGroup[] = [
   {
     key: "doctor",
     title: "Эмч",
-    options: [{ id: "khaliunaa", label: "Халиунаа" }],
+    options: [
+      { id: "bigermijid", label: "Бигэрмижид" },
+      { id: "delgermaa", label: "Дэлгэрмаа" },
+      { id: "munkhsuld", label: "Мөнхсүлд" },
+      { id: "otgonchimeg", label: "Отгончимэг" },
+      { id: "khash-erdene", label: "Хаш-Эрдэнэ" },
+      { id: "enkhtsetseg", label: "Энхцэцэг" },
+    ],
   },
   {
-    key: "relation",
-    title: "Хамаарал",
-    options: [{ id: "doctor_possessive", label: "эмчийн" }],
-  },
-  {
-    key: "subject",
-    title: "Хэн",
-    options: [{ id: "patient", label: "үйлчлүүлэгч" }],
-  },
-  {
-    key: "status",
+    key: "doctor-status",
     title: "Төлөв",
-    options: [{ id: "arrived", label: "ирлээ" }],
+    options: [
+      { id: "doctor-patient-arrived", label: "эмчийн үйлчлүүлэгч ирлээ" },
+      { id: "call-doctor-reception", label: "эмчийг ресепшн дээр дуудаж байна" },
+    ],
+  },
+  {
+    key: "nurse",
+    title: "Сувилагч",
+    options: [
+      {
+        id: "call-nurse-treatment-room",
+        label: "сувилагчийг эмчилгээний танхимд дуудаж байна",
+      },
+      {
+        id: "call-nurse-reception",
+        label: "сувилагчийг ресепшн дээр дуудаж байна",
+      },
+    ],
+  },
+  {
+    key: "other",
+    title: "Бусад",
+    options: [
+      { id: "food-arrived", label: "Хоол ирлээ" },
+      { id: "sterilized-tools-arrived", label: "Ариутгалын багаж ирлээ" },
+      { id: "delivery-arrived", label: "Хүргэлт ирлээ" },
+    ],
   },
 ];
-
-const INITIAL_PARTS: Record<PartKey, string> = {
-  doctor: "khaliunaa",
-  relation: "doctor_possessive",
-  subject: "patient",
-  status: "arrived",
-};
-
-function buildQuickMessage(parts: Record<PartKey, string>) {
-  return ANNOUNCEMENT_GROUPS.map((group) => {
-    const option = group.options.find((item) => item.id === parts[group.key]);
-    return option?.label || "";
-  })
-    .filter(Boolean)
-    .join(" ");
-}
 
 function canUseBranchAnnounce(role?: string | null) {
   return role === "receptionist" || role === "super_admin";
@@ -80,8 +85,7 @@ type CastStatus = "unavailable" | "ready" | "connected";
 
 export default function BranchAnnouncePage() {
   const { me, loading } = useAuth();
-  const [parts, setParts] = useState<Record<PartKey, string>>(INITIAL_PARTS);
-  const [message, setMessage] = useState(() => buildQuickMessage(INITIAL_PARTS));
+  const [message, setMessage] = useState("");
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [castStatus, setCastStatus] = useState<CastStatus>("unavailable");
   const [speaking, setSpeaking] = useState(false);
@@ -147,21 +151,10 @@ export default function BranchAnnouncePage() {
     initializeCast();
   }, []);
 
-  function rebuildFromParts(nextParts: Record<PartKey, string>) {
-    setMessage(buildQuickMessage(nextParts));
+  function appendQuickText(text: string) {
+    setMessage((prev) => [prev.trim(), text.trim()].filter(Boolean).join(" "));
     setSuccess("");
     setError("");
-  }
-
-  function selectPart(groupKey: PartKey, optionId: string) {
-    const nextParts = { ...parts, [groupKey]: optionId };
-    setParts(nextParts);
-    rebuildFromParts(nextParts);
-  }
-
-  function useDefaultSentence() {
-    setParts(INITIAL_PARTS);
-    rebuildFromParts(INITIAL_PARTS);
   }
 
   function stopAnnouncement() {
@@ -268,17 +261,10 @@ export default function BranchAnnouncePage() {
                   Эмчийн өрөөнд зарлах
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-gray-500">
-                  Доорх товчнууд өгүүлбэрийг хурдан үүсгэнэ. Текст хэсгийг гараар засаж болно. Tablet audio Nest speaker рүү cast хийгдсэн үед Nest дээр сонсогдоно.
+                  Доорх товчнуудыг дарах дарааллаар текст үүснэ. Текст хэсгийг гараар засаж болно. Tablet audio Nest speaker рүү cast хийгдсэн үед Nest дээр сонсогдоно.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={useDefaultSentence}
-                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
-                >
-                  Default sentence
-                </button>
                 <div className="flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 shadow-sm">
                   <google-cast-launcher className="h-6 w-6" />
                   <span className="text-xs font-bold text-gray-600">
@@ -296,7 +282,7 @@ export default function BranchAnnouncePage() {
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
               <h2 className="text-base font-black" style={{ color: NAVY }}>Хурдан сонголт</h2>
-              <p className="mt-1 text-sm text-gray-500">Сонголт дарахад textbox автоматаар шинэчлэгдэнэ.</p>
+              <p className="mt-1 text-sm text-gray-500">Сонголт дарахад тухайн үг/өгүүлбэр textbox-ийн төгсгөлд нэмэгдэнэ.</p>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 {ANNOUNCEMENT_GROUPS.map((group) => (
@@ -305,22 +291,16 @@ export default function BranchAnnouncePage() {
                       {group.title}
                     </h3>
                     <div className="flex flex-wrap gap-2">
-                      {group.options.map((option) => {
-                        const active = parts[group.key] === option.id;
-                        const buttonClass = active
-                          ? "border-orange-500 bg-orange-500 text-white shadow-sm"
-                          : "border-gray-300 bg-white text-gray-800 hover:bg-gray-50";
-                        return (
-                          <button
-                            key={option.id}
-                            type="button"
-                            onClick={() => selectPart(group.key, option.id)}
-                            className={"rounded-xl border px-4 py-3 text-lg font-extrabold transition active:scale-[0.98] " + buttonClass}
-                          >
-                            {option.label}
-                          </button>
-                        );
-                      })}
+                      {group.options.map((option) => (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => appendQuickText(option.label)}
+                          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm font-semibold text-gray-800 transition hover:border-orange-300 hover:bg-orange-50 active:scale-[0.98]"
+                        >
+                          {option.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 ))}
