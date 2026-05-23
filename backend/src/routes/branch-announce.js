@@ -6,26 +6,45 @@ import { requireRole } from "../middleware/auth.js";
 
 const router = Router();
 
-export const DOCTOR_NAMES = [
-  "Бигэрмижид",
-  "Дэлгэрмаа",
-  "Мөнхсүлд",
-  "Отгончимэг",
-  "Хаш-Эрдэнэ",
-  "Энхцэцэг",
+export const ANNOUNCEMENT_PHRASES = [
+  {
+    id: "doctor-patient-arrived",
+    label: "эмчийн үйлчлүүлэгч ирлээ",
+    requiresName: true,
+  },
+  {
+    id: "call-doctor-reception",
+    label: "эмчийг ресепшн дээр дуудаж байна",
+    requiresName: true,
+  },
+  {
+    id: "call-nurse-treatment-room",
+    label: "сувилагчийг эмчилгээний танхимд дуудаж байна",
+    requiresName: true,
+  },
+  {
+    id: "call-nurse-reception",
+    label: "сувилагчийг ресепшн дээр дуудаж байна",
+    requiresName: true,
+  },
+  {
+    id: "food-arrived",
+    label: "Хоол ирлээ",
+    requiresName: false,
+  },
+  {
+    id: "sterilized-tools-arrived",
+    label: "Ариутгалын багаж ирлээ",
+    requiresName: false,
+  },
+  {
+    id: "delivery-arrived",
+    label: "Хүргэлт ирлээ",
+    requiresName: false,
+  },
 ];
 
-export const DOCTOR_TEMPLATES = [
-  "эмчийн үйлчлүүлэгч ирлээ",
-  "эмчийг ресепшн дээр дуудаж байна",
-];
-
-export const FIXED_ANNOUNCEMENTS = [
-  "Сувилагчийг эмчилгээний танхимд дуудаж байна",
-  "Хоол ирлээ",
-  "Хүргэлт ирлээ",
-];
-
+const PHRASE_BY_ID = new Map(ANNOUNCEMENT_PHRASES.map((phrase) => [phrase.id, phrase]));
 const CHIMEGE_SYNTHESIZE_URL = "https://api.chimege.com/v1.2/synthesize";
 const DEFAULT_CACHE_DIR = "/data/media/branch-announce-audio";
 const DEFAULT_VOICE_ID = "FEMALE3v2";
@@ -33,26 +52,44 @@ const DEFAULT_SPEED = "1";
 const DEFAULT_PITCH = "1";
 const DEFAULT_SAMPLE_RATE = "22050";
 const AUDIO_MIME_TYPE = "audio/x-wav";
+const MAX_NAME_LENGTH = 200;
 
-export function getAllowedBranchAnnouncementMessages() {
-  const doctorMessages = DOCTOR_NAMES.flatMap((doctor) =>
-    DOCTOR_TEMPLATES.map((template) => `${doctor} ${template}`)
-  );
-  return new Set([...doctorMessages, ...FIXED_ANNOUNCEMENTS]);
+export function normalizeAnnouncementName(input) {
+  if (typeof input !== "string") {
+    throw new Error("Name is required.");
+  }
+  const name = input.trim();
+  if (!name) {
+    throw new Error("Name is required.");
+  }
+  if (/\s/.test(name)) {
+    throw new Error("Name must be one word.");
+  }
+  if (name.length > MAX_NAME_LENGTH) {
+    throw new Error("Name is too long.");
+  }
+  return name;
 }
 
-export function normalizeBranchAnnouncementMessage(input) {
-  if (typeof input !== "string") {
-    throw new Error("Announcement message is required.");
+export function normalizeAnnouncementPart(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Announcement part is required.");
   }
-  const message = input.replace(/\s+/g, " ").trim();
-  if (!message) {
-    throw new Error("Announcement message is required.");
+
+  if (input.type === "name") {
+    const text = normalizeAnnouncementName(input.text);
+    return { type: "name", text };
   }
-  if (!getAllowedBranchAnnouncementMessages().has(message)) {
-    throw new Error("Unsupported announcement message.");
+
+  if (input.type === "phrase") {
+    const phrase = PHRASE_BY_ID.get(String(input.id || ""));
+    if (!phrase) {
+      throw new Error("Unsupported announcement phrase.");
+    }
+    return { type: "phrase", id: phrase.id, text: phrase.label };
   }
-  return message;
+
+  throw new Error("Unsupported announcement part.");
 }
 
 function getChimegeSettings(env = process.env) {
@@ -66,12 +103,14 @@ function getChimegeSettings(env = process.env) {
   };
 }
 
-export function createBranchAnnouncementCacheKey(message, settings) {
+export function createBranchAnnouncementPartCacheKey(part, settings) {
   return crypto
     .createHash("sha256")
     .update(
       JSON.stringify({
-        message,
+        type: part.type,
+        id: part.id || null,
+        text: part.text,
         voiceId: settings.voiceId,
         speed: settings.speed,
         pitch: settings.pitch,
@@ -90,7 +129,7 @@ async function readCachedAudio(filePath) {
   }
 }
 
-export async function synthesizeWithChimege(message, settings, fetchImpl = fetch) {
+export async function synthesizeWithChimege(text, settings, fetchImpl = fetch) {
   if (!settings.token) {
     const err = new Error("Chimege API token is not configured.");
     err.code = "CHIMEGE_TOKEN_MISSING";
@@ -107,12 +146,12 @@ export async function synthesizeWithChimege(message, settings, fetchImpl = fetch
       pitch: settings.pitch,
       "sample-rate": settings.sampleRate,
     },
-    body: message,
+    body: text,
   });
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    const err = new Error(body || `Chimege TTS failed with HTTP ${res.status}.`);
+    const err = new Error(body || "Chimege TTS failed with HTTP " + res.status + ".");
     err.code = "CHIMEGE_REQUEST_FAILED";
     err.status = res.status;
     throw err;
@@ -121,57 +160,65 @@ export async function synthesizeWithChimege(message, settings, fetchImpl = fetch
   return Buffer.from(await res.arrayBuffer());
 }
 
-export async function getOrCreateBranchAnnouncementAudio(
-  message,
+export async function getOrCreateBranchAnnouncementPartAudio(
+  rawPart,
   {
     env = process.env,
     fetchImpl = fetch,
   } = {}
 ) {
-  const normalizedMessage = normalizeBranchAnnouncementMessage(message);
+  const part = normalizeAnnouncementPart(rawPart);
   const settings = getChimegeSettings(env);
-  const cacheKey = createBranchAnnouncementCacheKey(normalizedMessage, settings);
-  const filePath = path.join(settings.cacheDir, `${cacheKey}.wav`);
+  const cacheKey = createBranchAnnouncementPartCacheKey(part, settings);
+  const filePath = path.join(settings.cacheDir, part.type, cacheKey + ".wav");
 
   const cached = await readCachedAudio(filePath);
   if (cached) {
     return {
       audio: cached,
       cacheHit: true,
-      message: normalizedMessage,
+      part,
       cacheKey,
       mimeType: AUDIO_MIME_TYPE,
     };
   }
 
-  const audio = await synthesizeWithChimege(normalizedMessage, settings, fetchImpl);
-  await fs.mkdir(settings.cacheDir, { recursive: true });
+  const audio = await synthesizeWithChimege(part.text, settings, fetchImpl);
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, audio);
 
   return {
     audio,
     cacheHit: false,
-    message: normalizedMessage,
+    part,
     cacheKey,
     mimeType: AUDIO_MIME_TYPE,
   };
 }
 
+router.get("/phrases", requireRole("receptionist", "super_admin"), (_req, res) => {
+  return res.json({ phrases: ANNOUNCEMENT_PHRASES });
+});
+
 router.post(
-  "/audio",
+  "/part-audio",
   requireRole("receptionist", "super_admin"),
   async (req, res) => {
     try {
-      const result = await getOrCreateBranchAnnouncementAudio(req.body?.message);
+      const result = await getOrCreateBranchAnnouncementPartAudio(req.body?.part);
       res.setHeader("Content-Type", result.mimeType);
       res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
       res.setHeader("X-Branch-Announce-Cache", result.cacheHit ? "HIT" : "MISS");
-      res.setHeader("X-Branch-Announce-Message", encodeURIComponent(result.message));
+      res.setHeader("X-Branch-Announce-Part", encodeURIComponent(result.part.text));
       return res.status(200).send(result.audio);
     } catch (err) {
       if (
-        err?.message === "Announcement message is required." ||
-        err?.message === "Unsupported announcement message."
+        err?.message === "Announcement part is required." ||
+        err?.message === "Name is required." ||
+        err?.message === "Name must be one word." ||
+        err?.message === "Name is too long." ||
+        err?.message === "Unsupported announcement phrase." ||
+        err?.message === "Unsupported announcement part."
       ) {
         return res.status(400).json({ error: err.message });
       }
@@ -182,7 +229,7 @@ router.post(
           missingConfig: ["CHIMEGE_API_TOKEN"],
         });
       }
-      console.error("POST /api/branch-announce/audio error:", err);
+      console.error("POST /api/branch-announce/part-audio error:", err);
       return res.status(502).json({
         error: "Failed to generate announcement audio.",
         code: err?.code || "CHIMEGE_REQUEST_FAILED",
