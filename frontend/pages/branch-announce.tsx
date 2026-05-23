@@ -8,24 +8,49 @@ const ORANGE = "#f97316";
 const CAST_SDK_URL =
   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1";
 
-const DOCTOR_NAMES = [
-  "Бигэрмижид",
-  "Дэлгэрмаа",
-  "Мөнхсүлд",
-  "Отгончимэг",
-  "Хаш-Эрдэнэ",
-  "Энхцэцэг",
-];
-
-const DOCTOR_TEMPLATES = [
-  "эмчийн үйлчлүүлэгч ирлээ",
-  "эмчийг ресепшн дээр дуудаж байна",
-];
-
-const FIXED_ANNOUNCEMENTS = [
-  "Сувилагчийг эмчилгээний танхимд дуудаж байна",
-  "Хоол ирлээ",
-  "Хүргэлт ирлээ",
+const PHRASES = [
+  {
+    id: "doctor-patient-arrived",
+    label: "эмчийн үйлчлүүлэгч ирлээ",
+    requiresName: true,
+    group: "Эмч",
+  },
+  {
+    id: "call-doctor-reception",
+    label: "эмчийг ресепшн дээр дуудаж байна",
+    requiresName: true,
+    group: "Эмч",
+  },
+  {
+    id: "call-nurse-treatment-room",
+    label: "сувилагчийг эмчилгээний танхимд дуудаж байна",
+    requiresName: true,
+    group: "Сувилагч",
+  },
+  {
+    id: "call-nurse-reception",
+    label: "сувилагчийг ресепшн дээр дуудаж байна",
+    requiresName: true,
+    group: "Сувилагч",
+  },
+  {
+    id: "food-arrived",
+    label: "Хоол ирлээ",
+    requiresName: false,
+    group: "Бусад",
+  },
+  {
+    id: "sterilized-tools-arrived",
+    label: "Ариутгалын багаж ирлээ",
+    requiresName: false,
+    group: "Бусад",
+  },
+  {
+    id: "delivery-arrived",
+    label: "Хүргэлт ирлээ",
+    requiresName: false,
+    group: "Бусад",
+  },
 ];
 
 function canUseBranchAnnounce(role?: string | null) {
@@ -41,20 +66,48 @@ function displayName(me: ReturnType<typeof useAuth>["me"]) {
 
 type CastStatus = "unavailable" | "ready" | "connected";
 type AudioStatus = "idle" | "loading" | "playing";
+type Phrase = (typeof PHRASES)[number];
+type AnnouncementPart =
+  | { type: "name"; text: string }
+  | { type: "phrase"; id: string };
+
+type LoadedAudioPart = {
+  url: string;
+  cacheState: string;
+};
 
 export default function BranchAnnouncePage() {
   const { me, loading } = useAuth();
-  const [selectedDoctor, setSelectedDoctor] = useState("");
-  const [message, setMessage] = useState("");
+  const [name, setName] = useState("");
+  const [selectedPhrase, setSelectedPhrase] = useState<Phrase | null>(null);
   const [castStatus, setCastStatus] = useState<CastStatus>("unavailable");
   const [audioStatus, setAudioStatus] = useState<AudioStatus>("idle");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioUrlRef = useRef<string | null>(null);
+  const audioUrlsRef = useRef<string[]>([]);
+  const stoppedRef = useRef(false);
 
   const allowed = canUseBranchAnnounce(me?.role);
-  const trimmedMessage = useMemo(() => message.trim(), [message]);
+  const cleanName = useMemo(() => name.trim(), [name]);
+  const message = useMemo(() => {
+    if (!selectedPhrase) return "";
+    if (selectedPhrase.requiresName) {
+      return [cleanName, selectedPhrase.label].filter(Boolean).join(" ");
+    }
+    return selectedPhrase.label;
+  }, [cleanName, selectedPhrase]);
+  const audioParts = useMemo<AnnouncementPart[]>(() => {
+    if (!selectedPhrase) return [];
+    if (selectedPhrase.requiresName) {
+      if (!cleanName) return [];
+      return [
+        { type: "name", text: cleanName },
+        { type: "phrase", id: selectedPhrase.id },
+      ];
+    }
+    return [{ type: "phrase", id: selectedPhrase.id }];
+  }, [cleanName, selectedPhrase]);
   const busy = audioStatus === "loading" || audioStatus === "playing";
 
   useEffect(() => {
@@ -105,98 +158,114 @@ export default function BranchAnnouncePage() {
     };
   }, []);
 
-  function cleanupAudioUrl() {
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current);
-      audioUrlRef.current = null;
+  function cleanupAudioUrls() {
+    for (const url of audioUrlsRef.current) {
+      URL.revokeObjectURL(url);
     }
+    audioUrlsRef.current = [];
   }
 
   function stopAudio() {
+    stoppedRef.current = true;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       audioRef.current = null;
     }
-    cleanupAudioUrl();
+    cleanupAudioUrls();
     setAudioStatus("idle");
   }
 
-  function chooseDoctor(doctor: string) {
-    setSelectedDoctor(doctor);
+  function handleNameChange(value: string) {
+    const oneWord = value.replace(/\s+/g, "");
+    setName(oneWord);
     setSuccess("");
     setError("");
   }
 
-  function chooseDoctorTemplate(template: string) {
+  function choosePhrase(phrase: Phrase) {
+    setSelectedPhrase(phrase);
     setSuccess("");
     setError("");
-    if (!selectedDoctor) {
-      setError("Эхлээд эмчийн нэр сонгоно уу.");
-      return;
+  }
+
+  async function fetchAudioPart(part: AnnouncementPart): Promise<LoadedAudioPart> {
+    const res = await fetch("/api/branch-announce/part-audio", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ part }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.error || "Зарын audio үүсгэхэд алдаа гарлаа.");
     }
-    setMessage(selectedDoctor + " " + template);
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    audioUrlsRef.current.push(url);
+    return {
+      url,
+      cacheState: res.headers.get("X-Branch-Announce-Cache") || "MISS",
+    };
   }
 
-  function chooseFixedAnnouncement(nextMessage: string) {
-    setMessage(nextMessage);
-    setSuccess("");
-    setError("");
+  function playAudioUrl(url: string) {
+    return new Promise<void>((resolve, reject) => {
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onplay = () => setAudioStatus("playing");
+      audio.onended = () => {
+        audioRef.current = null;
+        resolve();
+      };
+      audio.onerror = () => {
+        audioRef.current = null;
+        reject(new Error("Audio тоглуулахад алдаа гарлаа."));
+      };
+      audio.play().catch(reject);
+    });
   }
 
   async function handleAnnounce() {
     setSuccess("");
     setError("");
 
-    if (!trimmedMessage) {
-      setError("Эхлээд зарлах өгүүлбэр сонгоно уу.");
+    if (!selectedPhrase) {
+      setError("Эхлээд зарлах template сонгоно уу.");
+      return;
+    }
+    if (selectedPhrase.requiresName && !cleanName) {
+      setError("Нэр нэг үгээр оруулна уу.");
       return;
     }
 
     stopAudio();
+    stoppedRef.current = false;
     setAudioStatus("loading");
 
     try {
-      const res = await fetch("/api/branch-announce/audio", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmedMessage }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || "Зарын audio үүсгэхэд алдаа гарлаа.");
+      const loadedParts = [];
+      for (const part of audioParts) {
+        loadedParts.push(await fetchAudioPart(part));
       }
 
-      const cacheState = res.headers.get("X-Branch-Announce-Cache") || "MISS";
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      audioUrlRef.current = url;
+      for (const part of loadedParts) {
+        if (stoppedRef.current) return;
+        await playAudioUrl(part.url);
+      }
 
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onplay = () => setAudioStatus("playing");
-      audio.onended = () => {
-        cleanupAudioUrl();
-        audioRef.current = null;
-        setAudioStatus("idle");
-        setSuccess(
-          cacheState === "HIT"
-            ? "Кэшлэгдсэн audio тоглогдлоо."
-            : "Шинэ audio үүсгэж тоглууллаа. Дараагийн удаа кэшээс шууд тоглоно."
-        );
-      };
-      audio.onerror = () => {
-        cleanupAudioUrl();
-        audioRef.current = null;
-        setAudioStatus("idle");
-        setError("Audio тоглуулахад алдаа гарлаа.");
-      };
-
-      await audio.play();
+      const allCached = loadedParts.every((part) => part.cacheState === "HIT");
+      cleanupAudioUrls();
+      setAudioStatus("idle");
+      setSuccess(
+        allCached
+          ? "Кэшлэгдсэн audio тоглогдлоо."
+          : "Шинэ audio хэсэг үүсгэж тоглууллаа. Дараагийн удаа кэшээс шууд тоглоно."
+      );
     } catch (err: any) {
-      cleanupAudioUrl();
+      cleanupAudioUrls();
       audioRef.current = null;
       setAudioStatus("idle");
       setError(err?.message || "Зарын audio үүсгэхэд алдаа гарлаа.");
@@ -267,7 +336,7 @@ export default function BranchAnnouncePage() {
                   Эмчийн өрөөнд зарлах
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-gray-500">
-                  Эмч сонгоод template дарна уу. Audio эхний удаа Chimege-ээр үүсэж кэшлэгдэнэ, дараагийн удаа шууд тоглоно.
+                  Нэрийг нэг үгээр оруулна. Нэр болон template audio тус тусдаа нэг удаа үүсэж кэшлэгдэнэ.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -288,27 +357,42 @@ export default function BranchAnnouncePage() {
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
               <h2 className="text-base font-black" style={{ color: NAVY }}>Хурдан сонголт</h2>
-              <p className="mt-1 text-sm text-gray-500">Зөвхөн баталгаажсан өгүүлбэрүүд audio үүсгэнэ.</p>
+              <p className="mt-1 text-sm text-gray-500">Нэр + template эсвэл нэргүй бусад зарыг сонгоно.</p>
 
               <div className="mt-5 space-y-4">
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-500" htmlFor="announce-name">
+                    Эмч / сувилагчийн нэр
+                  </label>
+                  <input
+                    id="announce-name"
+                    value={name}
+                    onChange={(event) => handleNameChange(event.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-lg font-bold text-gray-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                    placeholder="Жишээ: Хаш-Эрдэнэ"
+                    autoComplete="off"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">Зай оруулах боломжгүй, нэг нэр audio нэг удаа үүснэ.</p>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                   <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500">Эмч</h3>
                   <div className="flex flex-wrap gap-2">
-                    {DOCTOR_NAMES.map((doctor) => {
-                      const active = selectedDoctor === doctor;
+                    {PHRASES.filter((phrase) => phrase.group === "Эмч").map((phrase) => {
+                      const active = selectedPhrase?.id === phrase.id;
                       return (
                         <button
-                          key={doctor}
+                          key={phrase.id}
                           type="button"
-                          onClick={() => chooseDoctor(doctor)}
+                          onClick={() => choosePhrase(phrase)}
                           className={
-                            "rounded-lg border px-3 py-2 text-sm font-semibold transition active:scale-[0.98] " +
+                            "rounded-lg border px-3 py-2 text-left text-sm font-semibold transition active:scale-[0.98] " +
                             (active
                               ? "border-orange-500 bg-orange-50 text-orange-700"
                               : "border-gray-300 bg-white text-gray-800 hover:border-orange-300 hover:bg-orange-50")
                           }
                         >
-                          {doctor}
+                          {phrase.label}
                         </button>
                       );
                     })}
@@ -316,34 +400,50 @@ export default function BranchAnnouncePage() {
                 </div>
 
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500">Эмчийн template</h3>
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500">Сувилагч</h3>
                   <div className="flex flex-wrap gap-2">
-                    {DOCTOR_TEMPLATES.map((template) => (
-                      <button
-                        key={template}
-                        type="button"
-                        onClick={() => chooseDoctorTemplate(template)}
-                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm font-semibold text-gray-800 transition hover:border-orange-300 hover:bg-orange-50 active:scale-[0.98]"
-                      >
-                        {template}
-                      </button>
-                    ))}
+                    {PHRASES.filter((phrase) => phrase.group === "Сувилагч").map((phrase) => {
+                      const active = selectedPhrase?.id === phrase.id;
+                      return (
+                        <button
+                          key={phrase.id}
+                          type="button"
+                          onClick={() => choosePhrase(phrase)}
+                          className={
+                            "rounded-lg border px-3 py-2 text-left text-sm font-semibold transition active:scale-[0.98] " +
+                            (active
+                              ? "border-orange-500 bg-orange-50 text-orange-700"
+                              : "border-gray-300 bg-white text-gray-800 hover:border-orange-300 hover:bg-orange-50")
+                          }
+                        >
+                          {phrase.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                   <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500">Бусад</h3>
                   <div className="flex flex-wrap gap-2">
-                    {FIXED_ANNOUNCEMENTS.map((fixedMessage) => (
-                      <button
-                        key={fixedMessage}
-                        type="button"
-                        onClick={() => chooseFixedAnnouncement(fixedMessage)}
-                        className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm font-semibold text-gray-800 transition hover:border-orange-300 hover:bg-orange-50 active:scale-[0.98]"
-                      >
-                        {fixedMessage}
-                      </button>
-                    ))}
+                    {PHRASES.filter((phrase) => phrase.group === "Бусад").map((phrase) => {
+                      const active = selectedPhrase?.id === phrase.id;
+                      return (
+                        <button
+                          key={phrase.id}
+                          type="button"
+                          onClick={() => choosePhrase(phrase)}
+                          className={
+                            "rounded-lg border px-3 py-2 text-left text-sm font-semibold transition active:scale-[0.98] " +
+                            (active
+                              ? "border-orange-500 bg-orange-50 text-orange-700"
+                              : "border-gray-300 bg-white text-gray-800 hover:border-orange-300 hover:bg-orange-50")
+                          }
+                        >
+                          {phrase.label}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -361,7 +461,7 @@ export default function BranchAnnouncePage() {
                 readOnly
                 value={message}
                 className="mt-4 min-h-40 w-full resize-none rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-xl font-bold leading-snug text-gray-900 outline-none"
-                placeholder="Эмч/template эсвэл бусад зар сонгоно уу"
+                placeholder="Нэр болон template сонгоно уу"
               />
 
               <div className="mt-3 flex gap-2">
@@ -369,8 +469,8 @@ export default function BranchAnnouncePage() {
                   type="button"
                   onClick={() => {
                     stopAudio();
-                    setMessage("");
-                    setSelectedDoctor("");
+                    setName("");
+                    setSelectedPhrase(null);
                     setSuccess("");
                     setError("");
                   }}
@@ -402,7 +502,7 @@ export default function BranchAnnouncePage() {
               <button
                 type="button"
                 onClick={handleAnnounce}
-                disabled={busy || !trimmedMessage}
+                disabled={busy || !selectedPhrase}
                 className="mt-5 w-full rounded-xl px-5 py-4 text-lg font-black uppercase tracking-wide text-white shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ background: ORANGE }}
               >
