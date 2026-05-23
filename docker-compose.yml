@@ -49,6 +49,10 @@ services:
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
       - APP_BASE_URL=${APP_BASE_URL}
 
+<<<<<<< dev
+      # Branch announcement Chimege TTS
+=======
+>>>>>>> main
       - CHIMEGE_API_TOKEN=${CHIMEGE_API_TOKEN}
       - CHIMEGE_VOICE_ID=${CHIMEGE_VOICE_ID:-FEMALE3v2}
       - CHIMEGE_SPEED=${CHIMEGE_SPEED:-1}
