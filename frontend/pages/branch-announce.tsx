@@ -53,6 +53,15 @@ const PHRASES = [
   },
 ];
 
+const DEFAULT_NAMES = [
+  "Бигэрмижид",
+  "Дэлгэрмаа",
+  "Мөнхсүлд",
+  "Отгончимэг",
+  "Хаш-Эрдэнэ",
+  "Энхцэцэг",
+];
+
 function canUseBranchAnnounce(role?: string | null) {
   return role === "receptionist" || role === "super_admin";
 }
@@ -179,6 +188,12 @@ export default function BranchAnnouncePage() {
   function handleNameChange(value: string) {
     const oneWord = value.replace(/\s+/g, "");
     setName(oneWord);
+    setSuccess("");
+    setError("");
+  }
+
+  function chooseDefaultName(nextName: string) {
+    setName(nextName);
     setSuccess("");
     setError("");
   }
@@ -372,6 +387,26 @@ export default function BranchAnnouncePage() {
                     placeholder="Жишээ: Хаш-Эрдэнэ"
                     autoComplete="off"
                   />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {DEFAULT_NAMES.map((defaultName) => {
+                      const active = name === defaultName;
+                      return (
+                        <button
+                          key={defaultName}
+                          type="button"
+                          onClick={() => chooseDefaultName(defaultName)}
+                          className={
+                            "rounded-lg border px-3 py-2 text-sm font-semibold transition active:scale-[0.98] " +
+                            (active
+                              ? "border-orange-500 bg-orange-50 text-orange-700"
+                              : "border-gray-300 bg-white text-gray-800 hover:border-orange-300 hover:bg-orange-50")
+                          }
+                        >
+                          {defaultName}
+                        </button>
+                      );
+                    })}
+                  </div>
                   <p className="mt-2 text-xs text-gray-500">Зай оруулах боломжгүй, нэг нэр audio нэг удаа үүснэ.</p>
                 </div>
 
