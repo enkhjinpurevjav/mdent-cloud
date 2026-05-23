@@ -1,5 +1,6 @@
 import Head from "next/head";
-import { useMemo, useState } from "react";
+import Script from "next/script";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 
 type PartKey = "doctor" | "relation" | "subject" | "status";
@@ -18,6 +19,8 @@ type AnnouncementGroup = {
 const NAVY = "#131a29";
 const ORANGE = "#f97316";
 const MAX_MESSAGE_LENGTH = 180;
+const CAST_SDK_URL =
+  "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1";
 
 const ANNOUNCEMENT_GROUPS: AnnouncementGroup[] = [
   {
@@ -69,17 +72,80 @@ function displayName(me: ReturnType<typeof useAuth>["me"]) {
   return me.name || "Reception";
 }
 
+function getMongolianVoice(voices: SpeechSynthesisVoice[]) {
+  return voices.find((voice) => voice.lang.toLowerCase().startsWith("mn")) || null;
+}
+
+type CastStatus = "unavailable" | "ready" | "connected";
+
 export default function BranchAnnouncePage() {
   const { me, loading } = useAuth();
   const [parts, setParts] = useState<Record<PartKey, string>>(INITIAL_PARTS);
   const [message, setMessage] = useState(() => buildQuickMessage(INITIAL_PARTS));
-  const [sending, setSending] = useState(false);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [castStatus, setCastStatus] = useState<CastStatus>("unavailable");
+  const [speaking, setSpeaking] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
 
   const allowed = canUseBranchAnnounce(me?.role);
   const charsLeft = MAX_MESSAGE_LENGTH - message.length;
   const trimmedMessage = useMemo(() => message.trim(), [message]);
+  const mongolianVoice = useMemo(() => getMongolianVoice(voices), [voices]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+    const loadVoices = () => setVoices(window.speechSynthesis.getVoices());
+    loadVoices();
+    window.speechSynthesis.addEventListener?.("voiceschanged", loadVoices);
+    return () => {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.removeEventListener?.("voiceschanged", loadVoices);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const initializeCast = () => {
+      const castFramework = window.cast?.framework;
+      const chromeCast = window.chrome?.cast;
+      if (!castFramework || !chromeCast) return;
+
+      const context = castFramework.CastContext.getInstance();
+      context.setOptions({
+        receiverApplicationId: chromeCast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+        autoJoinPolicy: chromeCast.AutoJoinPolicy.ORIGIN_SCOPED,
+      });
+
+      const updateStatus = () => {
+        const state = context.getSessionState?.();
+        setCastStatus(
+          state === castFramework.SessionState.SESSION_STARTED ||
+            state === castFramework.SessionState.SESSION_RESUMED
+            ? "connected"
+            : "ready"
+        );
+      };
+
+      updateStatus();
+      if (!window.__branchAnnounceCastListenerAttached) {
+        context.addEventListener(
+          castFramework.CastContextEventType.SESSION_STATE_CHANGED,
+          updateStatus
+        );
+        window.__branchAnnounceCastListenerAttached = true;
+      }
+    };
+
+    window.__onGCastApiAvailable = (isAvailable: boolean) => {
+      if (!isAvailable) return;
+      initializeCast();
+    };
+
+    initializeCast();
+  }, []);
 
   function rebuildFromParts(nextParts: Record<PartKey, string>) {
     setMessage(buildQuickMessage(nextParts));
@@ -98,42 +164,44 @@ export default function BranchAnnouncePage() {
     rebuildFromParts(INITIAL_PARTS);
   }
 
-  async function handleAnnounce() {
-    setSending(true);
+  function stopAnnouncement() {
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
+    setSpeaking(false);
+  }
+
+  function handleAnnounce() {
     setSuccess("");
     setError("");
 
-    try {
-      const res = await fetch("/api/branch-announce", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: trimmedMessage }),
-      });
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        if (res.status === 401) {
-          throw new Error("Нэвтрэх эрхийн хугацаа дууссан байна. Дахин нэвтрэнэ үү.");
-        }
-        if (res.status === 403) {
-          throw new Error("Энэ үйлдлийг хийх эрхгүй байна.");
-        }
-        if (data?.code === "BRIDGE_NOT_CONFIGURED") {
-          const missing = Array.isArray(data?.missingConfig) && data.missingConfig.length
-            ? " Дутуу тохиргоо: " + data.missingConfig.join(", ") + "."
-            : "";
-          throw new Error("Speaker bridge тохируулаагүй байна." + missing);
-        }
-        throw new Error(data?.error || "Зар хүргэхэд алдаа гарлаа.");
-      }
-
-      setSuccess("Зар илгээгдлээ: " + (data?.message || trimmedMessage));
-    } catch (err: any) {
-      setError(err?.message || "Зар хүргэхэд алдаа гарлаа.");
-    } finally {
-      setSending(false);
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+      setError("Энэ төхөөрөмж дээр browser speech synthesis дэмжигдээгүй байна.");
+      return;
     }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(trimmedMessage);
+    utterance.lang = "mn-MN";
+    utterance.rate = 0.95;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+    if (mongolianVoice) utterance.voice = mongolianVoice;
+
+    utterance.onstart = () => {
+      setSpeaking(true);
+    };
+    utterance.onend = () => {
+      setSpeaking(false);
+      setSuccess("Зар дуудагдлаа. Tablet audio Nest speaker рүү cast хийгдсэн эсэхийг шалгана уу.");
+    };
+    utterance.onerror = () => {
+      setSpeaking(false);
+      setError("Зарыг дуугаар уншихад алдаа гарлаа.");
+    };
+
+    setSpeaking(true);
+    window.speechSynthesis.speak(utterance);
   }
 
   if (loading || !me) {
@@ -165,6 +233,7 @@ export default function BranchAnnouncePage() {
         <title>Branch announce</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
+      <Script src={CAST_SDK_URL} strategy="afterInteractive" />
 
       <main className="min-h-[100dvh] bg-gray-100 text-gray-900">
         <header className="h-14 text-white shadow-sm" style={{ background: NAVY }}>
@@ -199,16 +268,28 @@ export default function BranchAnnouncePage() {
                   Эмчийн өрөөнд зарлах
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-gray-500">
-                  Доорх товчнууд өгүүлбэрийг хурдан үүсгэнэ. Текст хэсгийг гараар засаж эсвэл өөр зар бичиж болно.
+                  Доорх товчнууд өгүүлбэрийг хурдан үүсгэнэ. Текст хэсгийг гараар засаж болно. Tablet audio Nest speaker рүү cast хийгдсэн үед Nest дээр сонсогдоно.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={useDefaultSentence}
-                className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
-              >
-                Default sentence
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={useDefaultSentence}
+                  className="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50"
+                >
+                  Default sentence
+                </button>
+                <div className="flex items-center gap-2 rounded-xl border border-gray-300 bg-white px-3 py-2 shadow-sm">
+                  <google-cast-launcher className="h-6 w-6" />
+                  <span className="text-xs font-bold text-gray-600">
+                    {castStatus === "connected"
+                      ? "Nest connected"
+                      : castStatus === "ready"
+                        ? "Tap to cast"
+                        : "Cast loading"}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -266,6 +347,12 @@ export default function BranchAnnouncePage() {
                 placeholder="Зарлах текстээ бичнэ үү"
               />
 
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-gray-500">
+                <span>
+                  Voice: {mongolianVoice ? mongolianVoice.name : "mn-MN default"}
+                </span>
+              </div>
+
               <div className="mt-3 flex gap-2">
                 <button
                   type="button"
@@ -277,6 +364,14 @@ export default function BranchAnnouncePage() {
                   className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
                 >
                   Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={stopAnnouncement}
+                  disabled={!speaking}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Stop
                 </button>
               </div>
 
@@ -294,11 +389,11 @@ export default function BranchAnnouncePage() {
               <button
                 type="button"
                 onClick={handleAnnounce}
-                disabled={sending || !trimmedMessage || charsLeft < 0}
+                disabled={speaking || !trimmedMessage || charsLeft < 0}
                 className="mt-5 w-full rounded-xl px-5 py-4 text-lg font-black uppercase tracking-wide text-white shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ background: ORANGE }}
               >
-                {sending ? "Илгээж байна..." : "Announce"}
+                {speaking ? "Дуудаж байна..." : "Announce"}
               </button>
             </section>
           </div>
