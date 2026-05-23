@@ -1,68 +1,55 @@
 import Head from "next/head";
 import Script from "next/script";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-
-type AnnouncementPart = {
-  id: string;
-  label: string;
-};
-
-type AnnouncementGroup = {
-  key: string;
-  title: string;
-  options: AnnouncementPart[];
-};
 
 const NAVY = "#131a29";
 const ORANGE = "#f97316";
-const MAX_MESSAGE_LENGTH = 180;
 const CAST_SDK_URL =
   "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1";
 
-const ANNOUNCEMENT_GROUPS: AnnouncementGroup[] = [
+const PHRASES = [
   {
-    key: "doctor",
-    title: "Эмч",
-    options: [
-      { id: "bigermijid", label: "Бигэрмижид" },
-      { id: "delgermaa", label: "Дэлгэрмаа" },
-      { id: "munkhsuld", label: "Мөнхсүлд" },
-      { id: "otgonchimeg", label: "Отгончимэг" },
-      { id: "khash-erdene", label: "Хаш-Эрдэнэ" },
-      { id: "enkhtsetseg", label: "Энхцэцэг" },
-    ],
+    id: "doctor-patient-arrived",
+    label: "эмчийн үйлчлүүлэгч ирлээ",
+    requiresName: true,
+    group: "Эмч",
   },
   {
-    key: "doctor-status",
-    title: "Төлөв",
-    options: [
-      { id: "doctor-patient-arrived", label: "эмчийн үйлчлүүлэгч ирлээ" },
-      { id: "call-doctor-reception", label: "эмчийг ресепшн дээр дуудаж байна" },
-    ],
+    id: "call-doctor-reception",
+    label: "эмчийг ресепшн дээр дуудаж байна",
+    requiresName: true,
+    group: "Эмч",
   },
   {
-    key: "nurse",
-    title: "Сувилагч",
-    options: [
-      {
-        id: "call-nurse-treatment-room",
-        label: "сувилагчийг эмчилгээний танхимд дуудаж байна",
-      },
-      {
-        id: "call-nurse-reception",
-        label: "сувилагчийг ресепшн дээр дуудаж байна",
-      },
-    ],
+    id: "call-nurse-treatment-room",
+    label: "сувилагчийг эмчилгээний танхимд дуудаж байна",
+    requiresName: true,
+    group: "Сувилагч",
   },
   {
-    key: "other",
-    title: "Бусад",
-    options: [
-      { id: "food-arrived", label: "Хоол ирлээ" },
-      { id: "sterilized-tools-arrived", label: "Ариутгалын багаж ирлээ" },
-      { id: "delivery-arrived", label: "Хүргэлт ирлээ" },
-    ],
+    id: "call-nurse-reception",
+    label: "сувилагчийг ресепшн дээр дуудаж байна",
+    requiresName: true,
+    group: "Сувилагч",
+  },
+  {
+    id: "food-arrived",
+    label: "Хоол ирлээ",
+    requiresName: false,
+    group: "Бусад",
+  },
+  {
+    id: "sterilized-tools-arrived",
+    label: "Ариутгалын багаж ирлээ",
+    requiresName: false,
+    group: "Бусад",
+  },
+  {
+    id: "delivery-arrived",
+    label: "Хүргэлт ирлээ",
+    requiresName: false,
+    group: "Бусад",
   },
 ];
 
@@ -77,37 +64,51 @@ function displayName(me: ReturnType<typeof useAuth>["me"]) {
   return me.name || "Reception";
 }
 
-function getMongolianVoice(voices: SpeechSynthesisVoice[]) {
-  return voices.find((voice) => voice.lang.toLowerCase().startsWith("mn")) || null;
-}
-
 type CastStatus = "unavailable" | "ready" | "connected";
+type AudioStatus = "idle" | "loading" | "playing";
+type Phrase = (typeof PHRASES)[number];
+type AnnouncementPart =
+  | { type: "name"; text: string }
+  | { type: "phrase"; id: string };
+
+type LoadedAudioPart = {
+  url: string;
+  cacheState: string;
+};
 
 export default function BranchAnnouncePage() {
   const { me, loading } = useAuth();
-  const [message, setMessage] = useState("");
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [name, setName] = useState("");
+  const [selectedPhrase, setSelectedPhrase] = useState<Phrase | null>(null);
   const [castStatus, setCastStatus] = useState<CastStatus>("unavailable");
-  const [speaking, setSpeaking] = useState(false);
+  const [audioStatus, setAudioStatus] = useState<AudioStatus>("idle");
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlsRef = useRef<string[]>([]);
+  const stoppedRef = useRef(false);
 
   const allowed = canUseBranchAnnounce(me?.role);
-  const charsLeft = MAX_MESSAGE_LENGTH - message.length;
-  const trimmedMessage = useMemo(() => message.trim(), [message]);
-  const mongolianVoice = useMemo(() => getMongolianVoice(voices), [voices]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-
-    const loadVoices = () => setVoices(window.speechSynthesis.getVoices());
-    loadVoices();
-    window.speechSynthesis.addEventListener?.("voiceschanged", loadVoices);
-    return () => {
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.removeEventListener?.("voiceschanged", loadVoices);
-    };
-  }, []);
+  const cleanName = useMemo(() => name.trim(), [name]);
+  const message = useMemo(() => {
+    if (!selectedPhrase) return "";
+    if (selectedPhrase.requiresName) {
+      return [cleanName, selectedPhrase.label].filter(Boolean).join(" ");
+    }
+    return selectedPhrase.label;
+  }, [cleanName, selectedPhrase]);
+  const audioParts = useMemo<AnnouncementPart[]>(() => {
+    if (!selectedPhrase) return [];
+    if (selectedPhrase.requiresName) {
+      if (!cleanName) return [];
+      return [
+        { type: "name", text: cleanName },
+        { type: "phrase", id: selectedPhrase.id },
+      ];
+    }
+    return [{ type: "phrase", id: selectedPhrase.id }];
+  }, [cleanName, selectedPhrase]);
+  const busy = audioStatus === "loading" || audioStatus === "playing";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -151,50 +152,124 @@ export default function BranchAnnouncePage() {
     initializeCast();
   }, []);
 
-  function appendQuickText(text: string) {
-    setMessage((prev) => [prev.trim(), text.trim()].filter(Boolean).join(" "));
-    setSuccess("");
-    setError("");
-  }
+  useEffect(() => {
+    return () => {
+      stopAudio();
+    };
+  }, []);
 
-  function stopAnnouncement() {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+  function cleanupAudioUrls() {
+    for (const url of audioUrlsRef.current) {
+      URL.revokeObjectURL(url);
     }
-    setSpeaking(false);
+    audioUrlsRef.current = [];
   }
 
-  function handleAnnounce() {
+  function stopAudio() {
+    stoppedRef.current = true;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current = null;
+    }
+    cleanupAudioUrls();
+    setAudioStatus("idle");
+  }
+
+  function handleNameChange(value: string) {
+    const oneWord = value.replace(/\s+/g, "");
+    setName(oneWord);
+    setSuccess("");
+    setError("");
+  }
+
+  function choosePhrase(phrase: Phrase) {
+    setSelectedPhrase(phrase);
+    setSuccess("");
+    setError("");
+  }
+
+  async function fetchAudioPart(part: AnnouncementPart): Promise<LoadedAudioPart> {
+    const res = await fetch("/api/branch-announce/part-audio", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ part }),
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.error || "Зарын audio үүсгэхэд алдаа гарлаа.");
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    audioUrlsRef.current.push(url);
+    return {
+      url,
+      cacheState: res.headers.get("X-Branch-Announce-Cache") || "MISS",
+    };
+  }
+
+  function playAudioUrl(url: string) {
+    return new Promise<void>((resolve, reject) => {
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onplay = () => setAudioStatus("playing");
+      audio.onended = () => {
+        audioRef.current = null;
+        resolve();
+      };
+      audio.onerror = () => {
+        audioRef.current = null;
+        reject(new Error("Audio тоглуулахад алдаа гарлаа."));
+      };
+      audio.play().catch(reject);
+    });
+  }
+
+  async function handleAnnounce() {
     setSuccess("");
     setError("");
 
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      setError("Энэ төхөөрөмж дээр browser speech synthesis дэмжигдээгүй байна.");
+    if (!selectedPhrase) {
+      setError("Эхлээд зарлах template сонгоно уу.");
+      return;
+    }
+    if (selectedPhrase.requiresName && !cleanName) {
+      setError("Нэр нэг үгээр оруулна уу.");
       return;
     }
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(trimmedMessage);
-    utterance.lang = "mn-MN";
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-    utterance.volume = 1;
-    if (mongolianVoice) utterance.voice = mongolianVoice;
+    stopAudio();
+    stoppedRef.current = false;
+    setAudioStatus("loading");
 
-    utterance.onstart = () => {
-      setSpeaking(true);
-    };
-    utterance.onend = () => {
-      setSpeaking(false);
-      setSuccess("Зар дуудагдлаа. Tablet audio Nest speaker рүү cast хийгдсэн эсэхийг шалгана уу.");
-    };
-    utterance.onerror = () => {
-      setSpeaking(false);
-      setError("Зарыг дуугаар уншихад алдаа гарлаа.");
-    };
+    try {
+      const loadedParts = [];
+      for (const part of audioParts) {
+        loadedParts.push(await fetchAudioPart(part));
+      }
 
-    setSpeaking(true);
-    window.speechSynthesis.speak(utterance);
+      for (const part of loadedParts) {
+        if (stoppedRef.current) return;
+        await playAudioUrl(part.url);
+      }
+
+      const allCached = loadedParts.every((part) => part.cacheState === "HIT");
+      cleanupAudioUrls();
+      setAudioStatus("idle");
+      setSuccess(
+        allCached
+          ? "Кэшлэгдсэн audio тоглогдлоо."
+          : "Шинэ audio хэсэг үүсгэж тоглууллаа. Дараагийн удаа кэшээс шууд тоглоно."
+      );
+    } catch (err: any) {
+      cleanupAudioUrls();
+      audioRef.current = null;
+      setAudioStatus("idle");
+      setError(err?.message || "Зарын audio үүсгэхэд алдаа гарлаа.");
+    }
   }
 
   if (loading || !me) {
@@ -261,7 +336,7 @@ export default function BranchAnnouncePage() {
                   Эмчийн өрөөнд зарлах
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-gray-500">
-                  Доорх товчнуудыг дарах дарааллаар текст үүснэ. Текст хэсгийг гараар засаж болно. Tablet audio Nest speaker рүү cast хийгдсэн үед Nest дээр сонсогдоно.
+                  Нэрийг нэг үгээр оруулна. Нэр болон template audio тус тусдаа нэг удаа үүсэж кэшлэгдэнэ.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -282,62 +357,120 @@ export default function BranchAnnouncePage() {
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
               <h2 className="text-base font-black" style={{ color: NAVY }}>Хурдан сонголт</h2>
-              <p className="mt-1 text-sm text-gray-500">Сонголт дарахад тухайн үг/өгүүлбэр textbox-ийн төгсгөлд нэмэгдэнэ.</p>
+              <p className="mt-1 text-sm text-gray-500">Нэр + template эсвэл нэргүй бусад зарыг сонгоно.</p>
 
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {ANNOUNCEMENT_GROUPS.map((group) => (
-                  <div key={group.key} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                    <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500">
-                      {group.title}
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {group.options.map((option) => (
+              <div className="mt-5 space-y-4">
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <label className="mb-2 block text-xs font-bold uppercase tracking-wide text-gray-500" htmlFor="announce-name">
+                    Эмч / сувилагчийн нэр
+                  </label>
+                  <input
+                    id="announce-name"
+                    value={name}
+                    onChange={(event) => handleNameChange(event.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-lg font-bold text-gray-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                    placeholder="Жишээ: Хаш-Эрдэнэ"
+                    autoComplete="off"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">Зай оруулах боломжгүй, нэг нэр audio нэг удаа үүснэ.</p>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500">Эмч</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {PHRASES.filter((phrase) => phrase.group === "Эмч").map((phrase) => {
+                      const active = selectedPhrase?.id === phrase.id;
+                      return (
                         <button
-                          key={option.id}
+                          key={phrase.id}
                           type="button"
-                          onClick={() => appendQuickText(option.label)}
-                          className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-left text-sm font-semibold text-gray-800 transition hover:border-orange-300 hover:bg-orange-50 active:scale-[0.98]"
+                          onClick={() => choosePhrase(phrase)}
+                          className={
+                            "rounded-lg border px-3 py-2 text-left text-sm font-semibold transition active:scale-[0.98] " +
+                            (active
+                              ? "border-orange-500 bg-orange-50 text-orange-700"
+                              : "border-gray-300 bg-white text-gray-800 hover:border-orange-300 hover:bg-orange-50")
+                          }
                         >
-                          {option.label}
+                          {phrase.label}
                         </button>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500">Сувилагч</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {PHRASES.filter((phrase) => phrase.group === "Сувилагч").map((phrase) => {
+                      const active = selectedPhrase?.id === phrase.id;
+                      return (
+                        <button
+                          key={phrase.id}
+                          type="button"
+                          onClick={() => choosePhrase(phrase)}
+                          className={
+                            "rounded-lg border px-3 py-2 text-left text-sm font-semibold transition active:scale-[0.98] " +
+                            (active
+                              ? "border-orange-500 bg-orange-50 text-orange-700"
+                              : "border-gray-300 bg-white text-gray-800 hover:border-orange-300 hover:bg-orange-50")
+                          }
+                        >
+                          {phrase.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-500">Бусад</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {PHRASES.filter((phrase) => phrase.group === "Бусад").map((phrase) => {
+                      const active = selectedPhrase?.id === phrase.id;
+                      return (
+                        <button
+                          key={phrase.id}
+                          type="button"
+                          onClick={() => choosePhrase(phrase)}
+                          className={
+                            "rounded-lg border px-3 py-2 text-left text-sm font-semibold transition active:scale-[0.98] " +
+                            (active
+                              ? "border-orange-500 bg-orange-50 text-orange-700"
+                              : "border-gray-300 bg-white text-gray-800 hover:border-orange-300 hover:bg-orange-50")
+                          }
+                        >
+                          {phrase.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </section>
 
             <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
               <div className="flex items-center justify-between gap-3">
                 <h2 className="text-base font-black" style={{ color: NAVY }}>Зарлах текст</h2>
-                <span className={charsLeft < 0 ? "text-xs font-bold text-red-600" : "text-xs font-semibold text-gray-400"}>
-                  {charsLeft} тэмдэгт
+                <span className="text-xs font-semibold text-gray-400">
+                  {message.length} тэмдэгт
                 </span>
               </div>
 
               <textarea
+                readOnly
                 value={message}
-                onChange={(event) => {
-                  setMessage(event.target.value);
-                  setSuccess("");
-                  setError("");
-                }}
-                maxLength={MAX_MESSAGE_LENGTH + 20}
-                className="mt-4 min-h-40 w-full resize-none rounded-xl border border-gray-300 bg-white px-4 py-3 text-xl font-bold leading-snug text-gray-900 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-                placeholder="Зарлах текстээ бичнэ үү"
+                className="mt-4 min-h-40 w-full resize-none rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-xl font-bold leading-snug text-gray-900 outline-none"
+                placeholder="Нэр болон template сонгоно уу"
               />
-
-              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold text-gray-500">
-                <span>
-                  Voice: {mongolianVoice ? mongolianVoice.name : "mn-MN default"}
-                </span>
-              </div>
 
               <div className="mt-3 flex gap-2">
                 <button
                   type="button"
                   onClick={() => {
-                    setMessage("");
+                    stopAudio();
+                    setName("");
+                    setSelectedPhrase(null);
                     setSuccess("");
                     setError("");
                   }}
@@ -347,8 +480,8 @@ export default function BranchAnnouncePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={stopAnnouncement}
-                  disabled={!speaking}
+                  onClick={stopAudio}
+                  disabled={audioStatus !== "playing"}
                   className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Stop
@@ -369,11 +502,15 @@ export default function BranchAnnouncePage() {
               <button
                 type="button"
                 onClick={handleAnnounce}
-                disabled={speaking || !trimmedMessage || charsLeft < 0}
+                disabled={busy || !selectedPhrase}
                 className="mt-5 w-full rounded-xl px-5 py-4 text-lg font-black uppercase tracking-wide text-white shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
                 style={{ background: ORANGE }}
               >
-                {speaking ? "Дуудаж байна..." : "Announce"}
+                {audioStatus === "loading"
+                  ? "Audio бэлдэж байна..."
+                  : audioStatus === "playing"
+                    ? "Дуудаж байна..."
+                    : "Announce"}
               </button>
             </section>
           </div>
