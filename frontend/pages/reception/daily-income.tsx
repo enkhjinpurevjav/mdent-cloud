@@ -246,8 +246,10 @@ export default function ReceptionDailyIncomePage() {
     }
   }, [me, router]);
 
-  // Filters — date prefilled to today, but no auto-fetch
-  const [date, setDate] = useState<string>(getTodayStr);
+  // Filters — date range prefilled to today, but no auto-fetch
+  const today = getTodayStr();
+  const [startDate, setStartDate] = useState<string>(today);
+  const [endDate, setEndDate] = useState<string>(today);
 
   // Reference data
   const [providerMap, setProviderMap] = useState<Map<number, string>>(
@@ -328,11 +330,11 @@ export default function ReceptionDailyIncomePage() {
   }, [paymentFilterOpen]);
 
   const fetchReport = useCallback(async () => {
-    if (!date) return;
+    if (!startDate || !endDate) return;
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ date });
+      const params = new URLSearchParams({ startDate, endDate });
       const res = await fetch(`/api/reception/daily-income?${params}`);
       const json = await res.json();
       if (!res.ok)
@@ -344,7 +346,7 @@ export default function ReceptionDailyIncomePage() {
     } finally {
       setLoading(false);
     }
-  }, [date]);
+  }, [startDate, endDate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -501,11 +503,26 @@ export default function ReceptionDailyIncomePage() {
           className="no-print mb-6 flex flex-wrap items-end gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
         >
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-600">Огноо</label>
+            <label className="text-xs font-semibold text-gray-600">
+              Эхлэх огноо
+            </label>
             <input
               type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              required
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-600">
+              Дуусах огноо
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => setEndDate(e.target.value)}
               required
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
             />
@@ -617,7 +634,7 @@ export default function ReceptionDailyIncomePage() {
           )}
           <button
             type="submit"
-            disabled={loading || !date}
+            disabled={loading || !startDate || !endDate}
             className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "Ачаалж байна..." : "Хайх"}
@@ -649,7 +666,7 @@ export default function ReceptionDailyIncomePage() {
               />
             </svg>
             <p className="text-sm">
-              Огноо сонгоод &ldquo;Хайх&rdquo; дарна уу
+              Огнооны хүрээ сонгоод &ldquo;Хайх&rdquo; дарна уу
             </p>
           </div>
         )}
@@ -697,7 +714,7 @@ export default function ReceptionDailyIncomePage() {
               </div>
             ) : data.paymentTypes.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 py-12 text-center text-sm text-gray-400">
-                Тухайн өдөр орлого байхгүй байна
+                Тухайн хугацаанд орлого байхгүй байна
               </div>
             ) : (
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">

@@ -22,38 +22,94 @@ function toNaiveYmdHm(dt) {
   return `${y}.${m}.${day} ${hh}:${mm}`;
 }
 
+function parseYmd(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const [y, m, d] = value.split("-").map(Number);
+  const parsed = new Date(y, m - 1, d);
+  if (
+    parsed.getFullYear() !== y ||
+    parsed.getMonth() !== m - 1 ||
+    parsed.getDate() !== d
+  ) {
+    return null;
+  }
+
+  return { y, m, d };
+}
+
+function getDateRange(query) {
+  const startDate =
+    typeof query.startDate === "string" && query.startDate
+      ? query.startDate
+      : typeof query.date === "string"
+      ? query.date
+      : null;
+  const endDate =
+    typeof query.endDate === "string" && query.endDate ? query.endDate : startDate;
+
+  if (!startDate || !endDate) {
+    return { error: "startDate and endDate are required (YYYY-MM-DD)" };
+  }
+
+  const startParts = parseYmd(startDate);
+  const endParts = parseYmd(endDate);
+  if (!startParts || !endParts) {
+    return { error: "Invalid date format, expected YYYY-MM-DD" };
+  }
+
+  const rangeStart = new Date(
+    startParts.y,
+    startParts.m - 1,
+    startParts.d,
+    0,
+    0,
+    0,
+    0
+  );
+  const rangeEnd = new Date(
+    endParts.y,
+    endParts.m - 1,
+    endParts.d,
+    23,
+    59,
+    59,
+    999
+  );
+
+  if (rangeStart > rangeEnd) {
+    return { error: "startDate must be before or equal to endDate" };
+  }
+
+  return { startDate, endDate, rangeStart, rangeEnd };
+}
+
 /**
  * GET /api/admin/daily-income
- * Returns daily income grouped by payment method for a given date, branch, and optional user.
+ * Returns income grouped by payment method for a date range, branch, and optional user.
  *
  * Query params:
- *   date     - required, YYYY-MM-DD
- *   branchId - optional, number
- *   userId   - optional, number (createdByUserId on Payment)
+ *   startDate - required, YYYY-MM-DD
+ *   endDate   - required, YYYY-MM-DD
+ *   date      - optional legacy fallback, YYYY-MM-DD
+ *   branchId  - optional, number
+ *   userId    - optional, number (createdByUserId on Payment)
  */
 router.get("/daily-income", async (req, res) => {
   try {
-    const { date, branchId, userId } = req.query;
-
-    if (!date || typeof date !== "string") {
-      return res.status(400).json({ error: "date is required (YYYY-MM-DD)" });
+    const { branchId, userId } = req.query;
+    const dateRange = getDateRange(req.query);
+    if (dateRange.error) {
+      return res.status(400).json({ error: dateRange.error });
     }
-
-    const [y, m, d] = date.split("-").map(Number);
-    if (!y || !m || !d) {
-      return res
-        .status(400)
-        .json({ error: "Invalid date format, expected YYYY-MM-DD" });
-    }
-
-    const dayStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-    const dayEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
 
     // Build payment where clause
     const paymentWhere = {
       timestamp: {
-        gte: dayStart,
-        lte: dayEnd,
+        gte: dateRange.rangeStart,
+        lte: dateRange.rangeEnd,
       },
     };
 
@@ -183,7 +239,12 @@ router.get("/daily-income", async (req, res) => {
     const grandTotal = paymentTypes.reduce((sum, g) => sum + g.totalAmount, 0);
 
     return res.json({
-      date,
+      date:
+        dateRange.startDate === dateRange.endDate
+          ? dateRange.startDate
+          : `${dateRange.startDate} - ${dateRange.endDate}`,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
       grandTotal,
       paymentTypes,
     });

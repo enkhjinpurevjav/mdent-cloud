@@ -250,7 +250,9 @@ function DetailRows({
 
 export default function DailyIncomePage() {
   // Filters
-  const [date, setDate] = useState<string>(getTodayStr);
+  const today = getTodayStr();
+  const [startDate, setStartDate] = useState<string>(today);
+  const [endDate, setEndDate] = useState<string>(today);
   const [branchId, setBranchId] = useState<number | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
 
@@ -379,11 +381,11 @@ export default function DailyIncomePage() {
   }, [paymentFilterOpen]);
 
   const fetchReport = useCallback(async () => {
-    if (!date) return;
+    if (!startDate || !endDate) return;
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ date });
+      const params = new URLSearchParams({ startDate, endDate });
       if (branchId) params.set("branchId", String(branchId));
       if (userId) params.set("userId", String(userId));
       const res = await fetch(`/api/admin/daily-income?${params}`);
@@ -397,7 +399,7 @@ export default function DailyIncomePage() {
     } finally {
       setLoading(false);
     }
-  }, [date, branchId, userId]);
+  }, [startDate, endDate, branchId, userId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -559,11 +561,26 @@ export default function DailyIncomePage() {
           className="no-print mb-6 flex flex-wrap items-end gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm"
         >
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-600">Огноо</label>
+            <label className="text-xs font-semibold text-gray-600">
+              Эхлэх огноо
+            </label>
             <input
               type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              required
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-600">
+              Дуусах огноо
+            </label>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => setEndDate(e.target.value)}
               required
               className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-300"
             />
@@ -707,7 +724,7 @@ export default function DailyIncomePage() {
           )}
           <button
             type="submit"
-            disabled={loading || !date}
+            disabled={loading || !startDate || !endDate}
             className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "Ачаалж байна..." : "Хайх"}
@@ -739,7 +756,7 @@ export default function DailyIncomePage() {
               />
             </svg>
             <p className="text-sm">
-              Огноо болон салбар сонгоод &ldquo;Хайх&rdquo; дарна уу
+              Огнооны хүрээ болон салбар сонгоод &ldquo;Хайх&rdquo; дарна уу
             </p>
           </div>
         )}
@@ -789,7 +806,7 @@ export default function DailyIncomePage() {
               </div>
             ) : data.paymentTypes.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 py-12 text-center text-sm text-gray-400">
-                Тухайн өдөр орлого байхгүй байна
+                Тухайн хугацаанд орлого байхгүй байна
               </div>
             ) : (
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
