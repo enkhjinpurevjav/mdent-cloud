@@ -263,8 +263,8 @@ export default function EmployeeVouchersPage() {
     "rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50";
 
   return (
-    <main className="mx-auto my-10 max-w-[1400px] p-6 font-sans">
-      <div className="flex items-center justify-between gap-3">
+    <main className="mx-auto my-6 max-w-[1400px] px-4 py-6 font-sans sm:my-10 sm:p-6">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="m-0 text-[22px] font-semibold text-gray-900">Ажилчдын ваучер</h1>
           <div className="mt-1 text-xs text-gray-500">
@@ -275,7 +275,7 @@ export default function EmployeeVouchersPage() {
         <button
           type="button"
           onClick={openAdd}
-          className="cursor-pointer rounded-md border border-green-600 bg-green-50 px-3 py-2 text-[13px] text-green-800 hover:bg-green-100"
+          className="shrink-0 cursor-pointer rounded-md border border-green-600 bg-green-50 px-3 py-2 text-[13px] text-green-800 hover:bg-green-100"
         >
           + Ажилтан нэмэх
         </button>
@@ -285,64 +285,135 @@ export default function EmployeeVouchersPage() {
       {!loading && error && <div className="mt-3.5 text-red-700">{error}</div>}
 
       {!loading && !error && (
-        <div className="mt-3.5 overflow-hidden rounded-[10px] border border-gray-200">
-          {/* Header */}
-          <div className={`${gridColsClass} bg-gray-50 text-xs font-bold text-gray-700`}>
-            <div>Нэр</div>
-            <div>Албан тушаал</div>
-            <div className="text-right">Нийт эрх</div>
-            <div className="text-right">Хэрэглэсэн</div>
-            <div className="text-right">Үлдэгдэл</div>
-            <div>Created</div>
-            <div>Updated</div>
-            <div>Код</div>
-            <div />
+        <>
+          {/* Mobile cards */}
+          <div className="mt-3.5 space-y-3 md:hidden">
+            {sorted.map((r) => (
+              <div key={r.userId} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-base font-semibold text-gray-900">
+                      {formatEmployeeName(r)}
+                    </div>
+                    <div className="mt-1 text-sm text-gray-600">{roleLabel(r.role)}</div>
+                  </div>
+                  <div className="shrink-0 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
+                    ID {r.userId}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-xs text-gray-500">Нийт эрх</div>
+                    <div className="mt-0.5 font-medium text-gray-900">{formatMoney(r.totalAmount)} ₮</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Хэрэглэсэн</div>
+                    <div className="mt-0.5 font-medium text-gray-900">{formatMoney(r.usedAmount)} ₮</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Үлдэгдэл</div>
+                    <div className="mt-0.5 font-bold text-gray-900">{formatMoney(r.remainingAmount)} ₮</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Код</div>
+                    <div className="mt-0.5 truncate font-mono text-xs text-gray-700" title={r.code}>
+                      {r.code}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Created</div>
+                    <div className="mt-0.5 text-xs text-gray-700">{formatDateOnly(r.createdAt)}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Updated</div>
+                    <div className="mt-0.5 text-xs text-gray-700">{formatDateOnly(r.updatedAt)}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(r)}
+                    className="flex-1 rounded-md border border-blue-600 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-600 hover:bg-blue-100"
+                  >
+                    Засах
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(r.userId)}
+                    className="flex-1 rounded-md border border-red-600 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                  >
+                    Устгах
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {sorted.length === 0 && (
+              <div className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-500">
+                Одоогоор ямар ч ажилтанд ваучер эрх олгоогүй байна.
+              </div>
+            )}
           </div>
 
-          {/* Rows */}
-          {sorted.map((r) => (
-            <div key={r.userId} className={`${gridColsClass} border-t border-gray-100 text-[13px]`}>
-              <div className="truncate font-semibold text-gray-900">{formatEmployeeName(r)}</div>
-              <div className="truncate text-gray-700">{roleLabel(r.role)}</div>
-
-              <div className="text-right">{formatMoney(r.totalAmount)} ₮</div>
-              <div className="text-right">{formatMoney(r.usedAmount)} ₮</div>
-              <div className="text-right font-bold">{formatMoney(r.remainingAmount)} ₮</div>
-
-              {/* Date only */}
-              <div className="text-xs text-gray-500">{formatDateOnly(r.createdAt)}</div>
-              <div className="text-xs text-gray-500">{formatDateOnly(r.updatedAt)}</div>
-
-              <div className="truncate font-mono text-xs text-gray-700" title={r.code}>
-                {r.code}
-              </div>
-
-              <div className="flex justify-end gap-2 whitespace-nowrap">
-                <button
-                  type="button"
-                  onClick={() => openEdit(r)}
-                  className="cursor-pointer rounded-md border border-blue-600 bg-blue-50 px-2.5 py-1.5 text-xs text-blue-600 hover:bg-blue-100"
-                >
-                  Засах
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleRemove(r.userId)}
-                  className="cursor-pointer rounded-md border border-red-600 bg-red-50 px-2.5 py-1.5 text-xs text-red-700 hover:bg-red-100"
-                >
-                  Устгах
-                </button>
-              </div>
+          {/* Desktop table */}
+          <div className="mt-3.5 hidden overflow-hidden rounded-[10px] border border-gray-200 md:block">
+            <div className={`${gridColsClass} bg-gray-50 text-xs font-bold text-gray-700`}>
+              <div>Нэр</div>
+              <div>Албан тушаал</div>
+              <div className="text-right">Нийт эрх</div>
+              <div className="text-right">Хэрэглэсэн</div>
+              <div className="text-right">Үлдэгдэл</div>
+              <div>Created</div>
+              <div>Updated</div>
+              <div>Код</div>
+              <div />
             </div>
-          ))}
 
-          {sorted.length === 0 && (
-            <div className="p-3 text-[13px] text-gray-500">
-              Одоогоор ямар ч ажилтанд ваучер эрх олгоогүй байна.
-            </div>
-          )}
-        </div>
+            {sorted.map((r) => (
+              <div key={r.userId} className={`${gridColsClass} border-t border-gray-100 text-[13px]`}>
+                <div className="truncate font-semibold text-gray-900">{formatEmployeeName(r)}</div>
+                <div className="truncate text-gray-700">{roleLabel(r.role)}</div>
+
+                <div className="text-right">{formatMoney(r.totalAmount)} ₮</div>
+                <div className="text-right">{formatMoney(r.usedAmount)} ₮</div>
+                <div className="text-right font-bold">{formatMoney(r.remainingAmount)} ₮</div>
+
+                <div className="text-xs text-gray-500">{formatDateOnly(r.createdAt)}</div>
+                <div className="text-xs text-gray-500">{formatDateOnly(r.updatedAt)}</div>
+
+                <div className="truncate font-mono text-xs text-gray-700" title={r.code}>
+                  {r.code}
+                </div>
+
+                <div className="flex justify-end gap-2 whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(r)}
+                    className="cursor-pointer rounded-md border border-blue-600 bg-blue-50 px-2.5 py-1.5 text-xs text-blue-600 hover:bg-blue-100"
+                  >
+                    Засах
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemove(r.userId)}
+                    className="cursor-pointer rounded-md border border-red-600 bg-red-50 px-2.5 py-1.5 text-xs text-red-700 hover:bg-red-100"
+                  >
+                    Устгах
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {sorted.length === 0 && (
+              <div className="p-3 text-[13px] text-gray-500">
+                Одоогоор ямар ч ажилтанд ваучер эрх олгоогүй байна.
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Add modal */}
