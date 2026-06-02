@@ -255,14 +255,19 @@ export default function EmployeeVouchersPage() {
   const sorted = useMemo(() => rows, [rows]);
 
   // Fit columns (no horizontal scroll); header + rows MUST match.
-  const GRID_COLS = "200px 110px 120px 120px 120px 120px 120px 120px 190px";
+  const gridColsClass =
+    "grid grid-cols-[200px_110px_120px_120px_120px_120px_120px_120px_190px] items-center gap-2.5 px-3 py-2.5";
+  const inputClass =
+    "w-full rounded-lg border border-gray-300 p-2.5 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-300";
+  const secondaryButtonClass =
+    "rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50";
 
   return (
-    <main style={{ maxWidth: 1400, margin: "40px auto", padding: 24, fontFamily: "sans-serif" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+    <main className="mx-auto my-10 max-w-[1400px] p-6 font-sans">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 style={{ margin: 0, fontSize: 22 }}>Ажилчдын ваучер</h1>
-          <div style={{ marginTop: 4, fontSize: 12, color: "#6b7280" }}>
+          <h1 className="m-0 text-[22px] font-semibold text-gray-900">Ажилчдын ваучер</h1>
+          <div className="mt-1 text-xs text-gray-500">
             Зөвхөн ваучер/эрх (EmployeeBenefit) олгосон ажилтнууд энд харагдана.
           </div>
         </div>
@@ -270,44 +275,24 @@ export default function EmployeeVouchersPage() {
         <button
           type="button"
           onClick={openAdd}
-          style={{
-            padding: "8px 12px",
-            borderRadius: 6,
-            border: "1px solid #16a34a",
-            background: "#f0fdf4",
-            color: "#166534",
-            cursor: "pointer",
-            fontSize: 13,
-          }}
+          className="cursor-pointer rounded-md border border-green-600 bg-green-50 px-3 py-2 text-[13px] text-green-800 hover:bg-green-100"
         >
           + Ажилтан нэмэх
         </button>
       </div>
 
-      {loading && <div style={{ marginTop: 14 }}>Ачаалж байна...</div>}
-      {!loading && error && <div style={{ marginTop: 14, color: "#b91c1c" }}>{error}</div>}
+      {loading && <div className="mt-3.5">Ачаалж байна...</div>}
+      {!loading && error && <div className="mt-3.5 text-red-700">{error}</div>}
 
       {!loading && !error && (
-        <div style={{ marginTop: 14, border: "1px solid #e5e7eb", borderRadius: 10, overflow: "hidden" }}>
+        <div className="mt-3.5 overflow-hidden rounded-[10px] border border-gray-200">
           {/* Header */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: GRID_COLS,
-              gap: 10,
-              padding: "10px 12px",
-              background: "#f9fafb",
-              fontSize: 12,
-              fontWeight: 700,
-              color: "#374151",
-              alignItems: "center",
-            }}
-          >
+          <div className={`${gridColsClass} bg-gray-50 text-xs font-bold text-gray-700`}>
             <div>Нэр</div>
             <div>Албан тушаал</div>
-            <div style={{ textAlign: "right" }}>Нийт эрх</div>
-            <div style={{ textAlign: "right" }}>Хэрэглэсэн</div>
-            <div style={{ textAlign: "right" }}>Үлдэгдэл</div>
+            <div className="text-right">Нийт эрх</div>
+            <div className="text-right">Хэрэглэсэн</div>
+            <div className="text-right">Үлдэгдэл</div>
             <div>Created</div>
             <div>Updated</div>
             <div>Код</div>
@@ -316,60 +301,27 @@ export default function EmployeeVouchersPage() {
 
           {/* Rows */}
           {sorted.map((r) => (
-            <div
-              key={r.userId}
-              style={{
-                display: "grid",
-                gridTemplateColumns: GRID_COLS,
-                gap: 10,
-                padding: "10px 12px",
-                borderTop: "1px solid #f3f4f6",
-                fontSize: 13,
-                alignItems: "center",
-              }}
-            >
-              <div style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis" }}>
-                {formatEmployeeName(r)}
-              </div>
-              <div style={{ color: "#374151", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {roleLabel(r.role)}
-              </div>
+            <div key={r.userId} className={`${gridColsClass} border-t border-gray-100 text-[13px]`}>
+              <div className="truncate font-semibold text-gray-900">{formatEmployeeName(r)}</div>
+              <div className="truncate text-gray-700">{roleLabel(r.role)}</div>
 
-              <div style={{ textAlign: "right" }}>{formatMoney(r.totalAmount)} ₮</div>
-              <div style={{ textAlign: "right" }}>{formatMoney(r.usedAmount)} ₮</div>
-              <div style={{ textAlign: "right", fontWeight: 700 }}>{formatMoney(r.remainingAmount)} ₮</div>
+              <div className="text-right">{formatMoney(r.totalAmount)} ₮</div>
+              <div className="text-right">{formatMoney(r.usedAmount)} ₮</div>
+              <div className="text-right font-bold">{formatMoney(r.remainingAmount)} ₮</div>
 
-              {/* ✅ date only */}
-              <div style={{ fontSize: 12, color: "#6b7280" }}>{formatDateOnly(r.createdAt)}</div>
-              <div style={{ fontSize: 12, color: "#6b7280" }}>{formatDateOnly(r.updatedAt)}</div>
+              {/* Date only */}
+              <div className="text-xs text-gray-500">{formatDateOnly(r.createdAt)}</div>
+              <div className="text-xs text-gray-500">{formatDateOnly(r.updatedAt)}</div>
 
-              <div
-                style={{
-                  fontFamily: "monospace",
-                  fontSize: 12,
-                  color: "#374151",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-                title={r.code}
-              >
+              <div className="truncate font-mono text-xs text-gray-700" title={r.code}>
                 {r.code}
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, whiteSpace: "nowrap" }}>
+              <div className="flex justify-end gap-2 whitespace-nowrap">
                 <button
                   type="button"
                   onClick={() => openEdit(r)}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 6,
-                    border: "1px solid #2563eb",
-                    background: "#eff6ff",
-                    color: "#2563eb",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
+                  className="cursor-pointer rounded-md border border-blue-600 bg-blue-50 px-2.5 py-1.5 text-xs text-blue-600 hover:bg-blue-100"
                 >
                   Засах
                 </button>
@@ -377,15 +329,7 @@ export default function EmployeeVouchersPage() {
                 <button
                   type="button"
                   onClick={() => handleRemove(r.userId)}
-                  style={{
-                    padding: "6px 10px",
-                    borderRadius: 6,
-                    border: "1px solid #dc2626",
-                    background: "#fef2f2",
-                    color: "#b91c1c",
-                    cursor: "pointer",
-                    fontSize: 12,
-                  }}
+                  className="cursor-pointer rounded-md border border-red-600 bg-red-50 px-2.5 py-1.5 text-xs text-red-700 hover:bg-red-100"
                 >
                   Устгах
                 </button>
@@ -394,7 +338,7 @@ export default function EmployeeVouchersPage() {
           ))}
 
           {sorted.length === 0 && (
-            <div style={{ padding: 12, fontSize: 13, color: "#6b7280" }}>
+            <div className="p-3 text-[13px] text-gray-500">
               Одоогоор ямар ч ажилтанд ваучер эрх олгоогүй байна.
             </div>
           )}
@@ -405,34 +349,20 @@ export default function EmployeeVouchersPage() {
       {addOpen && (
         <div
           onClick={() => setAddOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 100,
-          }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 560,
-              maxWidth: "95vw",
-              background: "#ffffff",
-              borderRadius: 10,
-              padding: 16,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
-              fontSize: 13,
-            }}
+            className="w-[560px] max-w-[95vw] rounded-[10px] bg-white p-4 text-[13px] shadow-[0_20px_60px_rgba(0,0,0,0.25)]"
           >
-            <h3 style={{ marginTop: 0, marginBottom: 10 }}>Ажилтанд ваучер эрх олгох</h3>
+            <h3 className="mb-2.5 mt-0 text-lg font-semibold text-gray-900">
+              Ажилтанд ваучер эрх олгох
+            </h3>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "#374151" }}>Ажилтан хайх</div>
-                <div style={{ position: "relative" }}>
+            <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-1.5">
+                <div className="text-xs text-gray-700">Ажилтан хайх</div>
+                <div className="relative">
                   <input
                     value={selectedUser
                       ? `${selectedUser.ovog ? selectedUser.ovog.charAt(0) + ". " : ""}${selectedUser.name || selectedUser.email} (${roleLabel(selectedUser.role)})`
@@ -445,24 +375,10 @@ export default function EmployeeVouchersPage() {
                     onFocus={() => setShowUserDropdown(true)}
                     placeholder="Нэрээр хайх..."
                     autoComplete="off"
-                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db", boxSizing: "border-box" }}
+                    className={`${inputClass} box-border`}
                   />
                   {showUserDropdown && !selectedUser && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "100%",
-                        left: 0,
-                        right: 0,
-                        background: "#fff",
-                        border: "1px solid #d1d5db",
-                        borderRadius: 8,
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
-                        zIndex: 200,
-                        maxHeight: 220,
-                        overflowY: "auto",
-                      }}
-                    >
+                    <div className="absolute left-0 right-0 top-full z-[200] max-h-[220px] overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-[0_4px_16px_rgba(0,0,0,0.12)]">
                       {(() => {
                         const q = userSearch.toLowerCase();
                         const filtered = users.filter((u) => {
@@ -471,7 +387,7 @@ export default function EmployeeVouchersPage() {
                           return fullName.includes(q) || (u.email || "").toLowerCase().includes(q);
                         });
                         if (filtered.length === 0) {
-                          return <div style={{ padding: "8px 12px", color: "#6b7280", fontSize: 12 }}>Олдсонгүй</div>;
+                          return <div className="px-3 py-2 text-xs text-gray-500">Олдсонгүй</div>;
                         }
                         return filtered.map((u) => (
                           <div
@@ -481,22 +397,15 @@ export default function EmployeeVouchersPage() {
                               setUserSearch("");
                               setShowUserDropdown(false);
                             }}
-                            style={{
-                              padding: "8px 12px",
-                              cursor: "pointer",
-                              borderBottom: "1px solid #f3f4f6",
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
+                            className="flex cursor-pointer items-center justify-between border-b border-gray-100 px-3 py-2 hover:bg-gray-50"
                           >
                             <div>
-                              <span style={{ fontWeight: 500 }}>
+                              <span className="font-medium">
                                 {u.ovog ? `${u.ovog.charAt(0)}. ` : ""}{u.name || u.email}
                               </span>
-                              <span style={{ marginLeft: 6, fontSize: 11, color: "#6b7280" }}>{u.email}</span>
+                              <span className="ml-1.5 text-[11px] text-gray-500">{u.email}</span>
                             </div>
-                            <span style={{ fontSize: 11, color: "#2563eb", background: "#eff6ff", padding: "2px 6px", borderRadius: 4 }}>
+                            <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[11px] text-blue-600">
                               {roleLabel(u.role)}
                             </span>
                           </div>
@@ -506,53 +415,42 @@ export default function EmployeeVouchersPage() {
                   )}
                 </div>
                 {selectedUser && (
-                  <div style={{ fontSize: 11, color: "#16a34a" }}>
+                  <div className="text-[11px] text-green-600">
                     Сонгогдсон: ID {selectedUser.id} — {selectedUser.email}
                   </div>
                 )}
               </div>
 
-              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "#374151" }}>Код</div>
+              <label className="flex flex-col gap-1.5">
+                <div className="text-xs text-gray-700">Код</div>
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="Жишээ: EMPBAT001"
-                  style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  className={inputClass}
                 />
               </label>
 
-              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "#374151" }}>Нийт эрхийн дүн</div>
+              <label className="flex flex-col gap-1.5">
+                <div className="text-xs text-gray-700">Нийт эрхийн дүн</div>
                 <input
                   value={initialAmount}
                   onChange={(e) => setInitialAmount(e.target.value)}
                   type="number"
                   min={0}
                   placeholder="Жишээ: 300000"
-                  style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                  className={inputClass}
                 />
               </label>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
-                <button
-                  type="button"
-                  onClick={() => setAddOpen(false)}
-                  style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", background: "#ffffff" }}
-                >
+              <div className="mt-1 flex justify-end gap-2">
+                <button type="button" onClick={() => setAddOpen(false)} className={secondaryButtonClass}>
                   Болих
                 </button>
                 <button
                   type="button"
                   onClick={handleAdd}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #16a34a",
-                    background: "#16a34a",
-                    color: "#ffffff",
-                    fontWeight: 600,
-                  }}
+                  className="rounded-lg border border-green-600 bg-green-600 px-3 py-2 text-sm font-semibold text-white hover:bg-green-700"
                 >
                   Хадгалах
                 </button>
@@ -569,113 +467,88 @@ export default function EmployeeVouchersPage() {
             setEditOpen(false);
             setEditing(null);
           }}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 110,
-          }}
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-black/35"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 600,
-              maxWidth: "95vw",
-              background: "#ffffff",
-              borderRadius: 10,
-              padding: 16,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
-              fontSize: 13,
-            }}
+            className="w-[600px] max-w-[95vw] rounded-[10px] bg-white p-4 text-[13px] shadow-[0_20px_60px_rgba(0,0,0,0.25)]"
           >
-            <h3 style={{ marginTop: 0, marginBottom: 10 }}>Ваучер эрх засах: {formatEmployeeName(editing)}</h3>
+            <h3 className="mb-2.5 mt-0 text-lg font-semibold text-gray-900">
+              Ваучер эрх засах: {formatEmployeeName(editing)}
+            </h3>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <div style={{ fontSize: 12, color: "#374151" }}>Код</div>
-                <input
-                  value={editCode}
-                  onChange={(e) => setEditCode(e.target.value)}
-                  style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
-                />
+            <div className="flex flex-col gap-2.5">
+              <label className="flex flex-col gap-1.5">
+                <div className="text-xs text-gray-700">Код</div>
+                <input value={editCode} onChange={(e) => setEditCode(e.target.value)} className={inputClass} />
               </label>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div style={{ fontSize: 12, color: "#374151" }}>Нийт эрхийн дүн</div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <label className="flex flex-col gap-1.5">
+                  <div className="text-xs text-gray-700">Нийт эрхийн дүн</div>
                   <input
                     value={editInitialAmount}
                     onChange={(e) => setEditInitialAmount(e.target.value)}
                     type="number"
                     min={0}
-                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                    className={inputClass}
                   />
                 </label>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div style={{ fontSize: 12, color: "#374151" }}>Үлдэгдэл</div>
+                <label className="flex flex-col gap-1.5">
+                  <div className="text-xs text-gray-700">Үлдэгдэл</div>
                   <input
                     value={editRemainingAmount}
                     onChange={(e) => setEditRemainingAmount(e.target.value)}
                     type="number"
                     min={0}
-                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                    className={inputClass}
                   />
                 </label>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div style={{ fontSize: 12, color: "#374151" }}>From date</div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <label className="flex flex-col gap-1.5">
+                  <div className="text-xs text-gray-700">From date</div>
                   <input
                     value={editFromDate}
                     onChange={(e) => setEditFromDate(e.target.value)}
                     type="date"
-                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                    className={inputClass}
                   />
                 </label>
 
-                <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  <div style={{ fontSize: 12, color: "#374151" }}>To date</div>
+                <label className="flex flex-col gap-1.5">
+                  <div className="text-xs text-gray-700">To date</div>
                   <input
                     value={editToDate}
                     onChange={(e) => setEditToDate(e.target.value)}
                     type="date"
-                    style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #d1d5db" }}
+                    className={inputClass}
                   />
                 </label>
               </div>
 
-              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+              <label className="mt-0.5 flex items-center gap-2">
                 <input type="checkbox" checked={editIsActive} onChange={(e) => setEditIsActive(e.target.checked)} />
                 <span>Идэвхтэй</span>
               </label>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+              <div className="mt-1 flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setEditOpen(false);
                     setEditing(null);
                   }}
-                  style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", background: "#ffffff" }}
+                  className={secondaryButtonClass}
                 >
                   Болих
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveEdit}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    border: "1px solid #2563eb",
-                    background: "#2563eb",
-                    color: "#ffffff",
-                    fontWeight: 600,
-                  }}
+                  className="rounded-lg border border-blue-600 bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                 >
                   Хадгалах
                 </button>
