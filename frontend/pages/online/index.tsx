@@ -625,7 +625,7 @@ export default function OnlineBookingPage() {
         <div style={{ marginTop: 14, borderRadius: 8, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: "#374151" }}>
             Цаг захиалга баталгаажуулалт 20,000 төгрөг болох ба энэхүү төлбөр нь таны эмчилгээний төлбөрөөс хасагдана.
-            Хэрэв та захиалсан цагтаа ирээгүй тохиолдолд энэхүү төлбөр буцаан олгогдогүйг анхаарна уу?
+            Хэрэв та захиалсан цагтаа ирээгүй тохиолдолд энэхүү төлбөр буцаан олгогдохгүйг анхаарна уу?
             Та захиалсан цагаасаа 24 цагийн өмнө бидэнтэй 77151551 дугаарт холбогдож нэмэлт хураамжгүй өөрчлөх боломжтой.
           </p>
           <label style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#111827", fontWeight: 600 }}>
