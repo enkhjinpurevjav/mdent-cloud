@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
 
 type UserDetails = {
@@ -173,6 +174,29 @@ export default function ProfilePage() {
 
   return (
     <div style={{ maxWidth: 600, margin: "0 auto", padding: "16px 12px 0" }}>
+      {user.role === "manager" && (
+        <Link href="/investor" legacyBehavior>
+          <a
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              marginBottom: 12,
+              padding: "8px 12px",
+              borderRadius: 10,
+              border: "1px solid #d1d5db",
+              background: "#ffffff",
+              color: "#0f2044",
+              fontSize: 14,
+              fontWeight: 600,
+              textDecoration: "none",
+            }}
+          >
+            ← Хянах самбар руу буцах
+          </a>
+        </Link>
+      )}
+
       <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16, color: "#0f2044" }}>
         Профайл
       </h1>
