@@ -61,7 +61,7 @@ function roleLabel(role: string) {
     receptionist: "Ресепшн",
     marketing: "Маркетинг",
     accountant: "Нягтлан",
-    manager: "Менежер",
+    manager: "Хөрөнгө оруулагч",
     xray: "Рентген",
     sterilization: "Ариутгал",
     other: "Бусад",

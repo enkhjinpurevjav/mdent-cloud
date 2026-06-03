@@ -57,7 +57,6 @@ export default function FinanceEncountersPage() {
 
   const canView =
     me?.role === "admin" ||
-    me?.role === "manager" ||
     me?.role === "accountant" ||
     me?.role === "super_admin" ||
     me?.role === "receptionist";

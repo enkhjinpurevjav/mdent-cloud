@@ -58,6 +58,7 @@ import attendanceRouter from "./routes/attendance.js";
 import foodOrdersRouter from "./routes/foodOrders.js";
 import doctorPortalRouter from "./routes/doctor.js";
 import nursePortalRouter from "./routes/nurse.js";
+import investorRouter from "./routes/investor.js";
 import attendanceReportRouter from "./routes/admin/attendanceReport.js";
 import attendancePolicyRouter from "./routes/admin/attendancePolicy.js";
 import adminPasswordResetRouter from "./routes/admin/passwordReset.js";
@@ -364,6 +365,9 @@ app.use("/api/doctor", doctorPortalRouter);
 
 // Nurse portal routes (authenticateJWT + requireRole(\"nurse\") enforced inside the router)
 app.use("/api/nurse", nursePortalRouter);
+
+// Investor portal routes (authenticateJWT + requireRole("manager") enforced inside the router)
+app.use("/api/investor", investorRouter);
 
 // Admin attendance report
 app.use("/api/admin", attendanceReportRouter);

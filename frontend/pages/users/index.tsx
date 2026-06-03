@@ -86,7 +86,7 @@ setUsers(
       case "accountant":
         return "Нягтлан";
       case "manager":
-        return "Менежер";
+        return "Хөрөнгө оруулагч";
       case "admin":
         return "Админ";
       default:

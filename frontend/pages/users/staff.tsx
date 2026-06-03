@@ -38,7 +38,7 @@ type OtherStaff = {
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "accountant", label: "Нягтлан" },
-  { value: "manager", label: "Менежер" },
+  { value: "manager", label: "Хөрөнгө оруулагч" },
   { value: "hr", label: "Хүний нөөц" },
   { value: "admin", label: "Админ" },
   { value: "super_admin", label: "Супер Админ" },
@@ -53,7 +53,7 @@ const getRoleLabel = (role: string) => {
     case "accountant":
       return "Нягтлан";
     case "manager":
-      return "Менежер";
+      return "Хөрөнгө оруулагч";
     case "hr":
       return "Хүний нөөц";
     case "admin":

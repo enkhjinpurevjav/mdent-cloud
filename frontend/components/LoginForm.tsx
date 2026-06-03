@@ -47,6 +47,7 @@ export default function LoginForm() {
       const isHr = user?.role === "hr";
       const isSterilization = user?.role === "sterilization";
       const isOther = user?.role === "other";
+      const isInvestor = user?.role === "manager";
       const isBranchKiosk = user?.role === "branch_kiosk";
       const isBranchNurseKiosk = user?.role === "branch_nurse_kiosk";
       const isAdminRole = ["admin", "super_admin"].includes(user?.role ?? "");
@@ -88,6 +89,12 @@ export default function LoginForm() {
             redirectParam.startsWith("/profile"))
         ) {
           safeRedirect = redirectParam;
+        } else if (
+          isInvestor &&
+          (redirectParam.startsWith("/investor") ||
+            redirectParam.startsWith("/profile"))
+        ) {
+          safeRedirect = redirectParam;
         } else if (isBranchKiosk && redirectParam.startsWith("/branch")) {
           safeRedirect = redirectParam;
         } else if (isBranchNurseKiosk && redirectParam.startsWith("/branch-nurse")) {
@@ -113,6 +120,8 @@ export default function LoginForm() {
         ? "/sterilization/cycles/new"
         : isOther
         ? "/attendance"
+        : isInvestor
+        ? "/investor"
         : isBranchKiosk
         ? "/branch"
         : isBranchNurseKiosk
