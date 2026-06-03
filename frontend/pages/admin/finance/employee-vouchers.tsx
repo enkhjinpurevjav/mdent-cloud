@@ -64,7 +64,7 @@ function roleLabel(role: string) {
     nurse: "Сувилагч",
     accountant: "Нягтлан",
     receptionist: "Ресепшн",
-    manager: "Менежер",
+    manager: "Хөрөнгө оруулагч",
     admin: "Админ",
   };
   return map[role] || role;

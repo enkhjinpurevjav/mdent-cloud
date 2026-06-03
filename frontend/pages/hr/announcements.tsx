@@ -18,7 +18,7 @@ const TARGET_ROLE_OPTIONS = [
   { value: "receptionist", label: "Ресепшн" },
   { value: "marketing", label: "Маркетинг" },
   { value: "accountant", label: "Нягтлан" },
-  { value: "manager", label: "Менежер" },
+  { value: "manager", label: "Хөрөнгө оруулагч" },
   { value: "xray", label: "Рентген" },
   { value: "sterilization", label: "Ариутгал" },
   { value: "other", label: "Бусад" },

@@ -277,7 +277,9 @@ export default function AdminLayout({ children, wide, hideSidebar }: Props) {
   const meDisplayName = me?.name || me?.email || "—";
   const meAvatarLetter = (me?.name || me?.email || "?").charAt(0).toUpperCase();
   const hideAttendanceShortcut =
-    me?.role === "branch_kiosk" || me?.role === "branch_nurse_kiosk";
+    me?.role === "branch_kiosk" ||
+    me?.role === "branch_nurse_kiosk" ||
+    me?.role === "manager";
   const meDisplayRole = (() => {
     const r = me?.role;
     if (!r) return "—";
@@ -289,6 +291,7 @@ export default function AdminLayout({ children, wide, hideSidebar }: Props) {
       hr: "Хүний нөөц",
       sterilization: "Ариутгал",
       other: "Бусад",
+      manager: "Хөрөнгө оруулагч",
       reception: "Ресепшн",
       staff: "Ажилтан",
     };

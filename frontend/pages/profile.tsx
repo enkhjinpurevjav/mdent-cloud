@@ -31,7 +31,7 @@ function formatRole(role?: string | null): string {
     hr: "Хүний нөөц",
     marketing: "Маркетинг",
     accountant: "Нягтлан",
-    manager: "Менежер",
+    manager: "Хөрөнгө оруулагч",
     xray: "Рентген",
     sterilization: "Ариутгал",
     other: "Бусад",

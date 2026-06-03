@@ -539,7 +539,7 @@ export default function DebtsPage() {
 
   const canAdjust = me?.role === "super_admin" || me?.role === "accountant";
   const canView =
-    me?.role === "admin" || me?.role === "manager" || canAdjust;
+    me?.role === "admin" || canAdjust;
 
   // Redirect if not authorized
   useEffect(() => {
