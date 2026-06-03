@@ -54,7 +54,7 @@ export default function FinanceInvoicesPage() {
   const [drawerInvoiceId, setDrawerInvoiceId] = useState<number | null>(null);
   const [refreshSignal, setRefreshSignal] = useState(0);
 
-  const canView = me?.role === "admin" || me?.role === "manager" || me?.role === "accountant" || me?.role === "super_admin";
+  const canView = me?.role === "admin" || me?.role === "accountant" || me?.role === "super_admin";
 
   useEffect(() => {
     if (!authLoading && me && !canView) {

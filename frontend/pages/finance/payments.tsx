@@ -58,7 +58,7 @@ export default function FinancePaymentsPage() {
   const [reverseError, setReverseError] = useState("");
 
   const canView =
-    me?.role === "admin" || me?.role === "manager" || me?.role === "accountant" || me?.role === "super_admin";
+    me?.role === "admin" || me?.role === "accountant" || me?.role === "super_admin";
   const canReverse = me?.role === "admin" || me?.role === "super_admin";
   const canReversePayment = (row: PaymentRow | null) => {
     if (!row || !canReverse) return false;

@@ -50,6 +50,10 @@ function isBranchAnnouncePath(pathname: string) {
   return pathname === "/branch-announce";
 }
 
+function isInvestorPath(pathname: string) {
+  return pathname === "/investor" || pathname.startsWith("/investor/");
+}
+
 function isAppointmentsPath(pathname: string) {
   return (
     pathname === "/appointments" ||
@@ -92,6 +96,15 @@ function isOtherAllowedPath(pathname: string) {
   return (
     pathname === "/attendance" ||
     pathname.startsWith("/attendance/") ||
+    pathname === "/profile" ||
+    pathname.startsWith("/profile/")
+  );
+}
+
+function isInvestorAllowedPath(pathname: string) {
+  return (
+    pathname === "/investor" ||
+    pathname.startsWith("/investor/") ||
     pathname === "/profile" ||
     pathname.startsWith("/profile/")
   );
@@ -234,6 +247,14 @@ function AppContent({ Component, pageProps }: AppProps) {
     void router.replace("/attendance");
   }, [isPublicRoute, loading, me, router]);
 
+  // Keep investors scoped to the investor portal and profile only.
+  useEffect(() => {
+    if (loading || !me || isPublicRoute) return;
+    if (me.role !== "manager") return;
+    if (isInvestorAllowedPath(router.pathname)) return;
+    void router.replace("/investor");
+  }, [isPublicRoute, loading, me, router]);
+
   // Keep nurse kiosk users scoped to nurse kiosk-only pages.
   useEffect(() => {
     if (loading || !me || isPublicRoute) return;
@@ -272,6 +293,7 @@ function AppContent({ Component, pageProps }: AppProps) {
   const useMarketingLayout = isMarketingPath(router.pathname);
   const useXrayLayout = isXrayPath(router.pathname);
   const useBranchNurseKiosk = isBranchNurseKioskPath(router.pathname);
+  const useInvestorPortal = isInvestorPath(router.pathname) || userRole === "manager";
   const useBranchKioskLayout =
     (isBranchKioskPath(router.pathname) || userRole === "branch_kiosk") &&
     !useBranchNurseKiosk;
@@ -338,6 +360,14 @@ function AppContent({ Component, pageProps }: AppProps) {
   if (useOtherPortalLayout) {
     return renderWithPopup(
       <AdminLayout hideSidebar>
+        <Component {...pageProps} />
+      </AdminLayout>
+    );
+  }
+
+  if (useInvestorPortal) {
+    return renderWithPopup(
+      <AdminLayout hideSidebar wide>
         <Component {...pageProps} />
       </AdminLayout>
     );
