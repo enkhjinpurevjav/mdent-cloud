@@ -56,16 +56,79 @@ function extractOnlineBookingIdFromAppointmentNotes(notes) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+function toLocalHHmm(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function toLocalDayBounds(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(d);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+async function resolveOnlineBookingIdForInvoice(trx, { appointment, invoice }) {
+  const fromNotes = extractOnlineBookingIdFromAppointmentNotes(appointment?.notes);
+  if (fromNotes) return fromNotes;
+
+  const source = String(appointment?.source || "").toUpperCase();
+  if (source !== "ONLINE_BOOKING") return null;
+
+  const branchId = Number(appointment?.branchId || 0);
+  const doctorId = Number(appointment?.doctorId || 0);
+  const patientId = Number(invoice?.patientId || appointment?.patientId || 0);
+  const slotTime = toLocalHHmm(appointment?.scheduledAt);
+  const dayBounds = toLocalDayBounds(appointment?.scheduledAt);
+  if (!branchId || !doctorId || !patientId || !slotTime || !dayBounds) {
+    return null;
+  }
+
+  const strict = await trx.booking.findFirst({
+    where: {
+      branchId,
+      doctorId,
+      patientId,
+      status: { in: ["ONLINE_CONFIRMED", "ONLINE_HELD"] },
+      date: { gte: dayBounds.start, lte: dayBounds.end },
+      startTime: slotTime,
+      deposit: { isNot: null },
+    },
+    orderBy: { id: "desc" },
+    select: { id: true },
+  });
+  if (strict?.id) return strict.id;
+
+  const relaxed = await trx.booking.findFirst({
+    where: {
+      branchId,
+      doctorId,
+      patientId,
+      status: { in: ["ONLINE_CONFIRMED", "ONLINE_HELD"] },
+      date: { gte: dayBounds.start, lte: dayBounds.end },
+      deposit: { isNot: null },
+    },
+    orderBy: { id: "desc" },
+    select: { id: true },
+  });
+  return relaxed?.id || null;
+}
+
 export async function resolveOnlineBookingDepositDefaultForInvoice(
   trx,
   { invoice, appointment }
 ) {
-  if (!invoice?.id) return null;
   if (!appointment || String(appointment.source || "").toUpperCase() !== "ONLINE_BOOKING") {
     return null;
   }
 
-  const bookingId = extractOnlineBookingIdFromAppointmentNotes(appointment.notes);
+  const bookingId = await resolveOnlineBookingIdForInvoice(trx, { appointment, invoice });
   if (!bookingId) return null;
 
   const deposit = await trx.bookingDeposit.findUnique({
@@ -85,13 +148,16 @@ export async function resolveOnlineBookingDepositDefaultForInvoice(
     return null;
   }
 
-  const existingDepositPayments = await trx.payment.findMany({
-    where: {
-      invoiceId: invoice.id,
-      method: ONLINE_BOOKING_DEPOSIT_METHOD,
-    },
-    select: { amount: true },
-  });
+  const invoiceId = Number(invoice?.id || 0);
+  const existingDepositPayments = invoiceId
+    ? await trx.payment.findMany({
+        where: {
+          invoiceId,
+          method: ONLINE_BOOKING_DEPOSIT_METHOD,
+        },
+        select: { amount: true },
+      })
+    : [];
   const alreadyAppliedAmount = existingDepositPayments.reduce(
     (sum, row) => sum + Number(row.amount || 0),
     0
@@ -101,10 +167,12 @@ export async function resolveOnlineBookingDepositDefaultForInvoice(
     return null;
   }
 
-  const allPayments = await trx.payment.findMany({
-    where: { invoiceId: invoice.id },
-    select: { amount: true },
-  });
+  const allPayments = invoiceId
+    ? await trx.payment.findMany({
+        where: { invoiceId },
+        select: { amount: true },
+      })
+    : [];
   const alreadyPaidTotal = computePaidTotal(allPayments);
   const baseAmount =
     invoice.finalAmount != null
@@ -295,7 +363,16 @@ router.get("/encounters/:id/invoice", async (req, res) => {
             payments: { include: { createdBy: { select: { id: true, name: true, ovog: true } } } },
           },
         },
-        appointment: { select: { branchId: true, source: true, notes: true } },
+        appointment: {
+          select: {
+            branchId: true,
+            source: true,
+            notes: true,
+            scheduledAt: true,
+            doctorId: true,
+            patientId: true,
+          },
+        },
       },
     });
 
@@ -465,6 +542,16 @@ router.get("/encounters/:id/invoice", async (req, res) => {
     const patientOldBalance = hasMarker
       ? await getPatientOldBalance(patientId, null)
       : 0;
+    const provisionalInvoiceForDefaults = {
+      id: null,
+      patientId,
+      finalAmount: totalBeforeDiscount,
+      totalAmount: totalBeforeDiscount,
+    };
+    const onlineBookingDepositDefault = await resolveOnlineBookingDepositDefaultForInvoice(prisma, {
+      invoice: provisionalInvoiceForDefaults,
+      appointment: encounter.appointment,
+    });
 
     // Standardized canonical Invoice response for provisional (no saved invoice yet)
     return res.json({
@@ -497,7 +584,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       patientOvog: patient.ovog ?? null,
       patientName: patient.name,
       patientRegNo: patient.regNo ?? null,
-      onlineBookingDepositDefault: null,
+      onlineBookingDepositDefault,
     });
   } catch (err) {
     console.error("GET /encounters/:id/invoice failed:", err);
@@ -532,7 +619,16 @@ router.post("/encounters/:id/invoice", async (req, res) => {
         patientBook: { include: { patient: true } },
         encounterServices: true,
         invoice: { include: { items: true, eBarimtReceipt: true } },
-        appointment: { select: { branchId: true, source: true, notes: true } },
+        appointment: {
+          select: {
+            branchId: true,
+            source: true,
+            notes: true,
+            scheduledAt: true,
+            doctorId: true,
+            patientId: true,
+          },
+        },
       },
     });
 
