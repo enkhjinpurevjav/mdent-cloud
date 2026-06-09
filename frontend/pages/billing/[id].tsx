@@ -200,6 +200,13 @@ function formatAuditUserDisplay(u: AuditUser | null | undefined): string {
   return name || ovog || "-";
 }
 
+function formatPaymentMethodLabel(method?: string | null): string {
+  const normalized = String(method || "").trim().toUpperCase();
+  if (!normalized) return "-";
+  if (normalized === "ONLINE_BOOKING_DEPOSIT") return "онлайн цаг захиалга";
+  return normalized;
+}
+
 function formatNurseNameWithOvogInitial(name?: string | null, ovog?: string | null): string {
   const trimmedName = name?.trim() || "";
   const trimmedOvog = ovog?.trim() || "";
@@ -1452,7 +1459,7 @@ function BillingPaymentSection({
           <ul className="m-0 pl-4">
             {invoice.payments.map((p) => (
               <li key={p.id}>
-                {formatFinanceDateTime(p.timestamp)} — {p.method} — {formatAuditUserDisplay(p.createdByUser)} —{" "}
+                {formatFinanceDateTime(p.timestamp)} — {formatPaymentMethodLabel(p.method)} — {formatAuditUserDisplay(p.createdByUser)} —{" "}
                 {formatMoney(p.amount)} ₮
               </li>
             ))}

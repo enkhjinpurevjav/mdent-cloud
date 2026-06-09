@@ -9,11 +9,12 @@ test("buildDetailedPaymentSummaryRows includes required methods with zeros", () 
   const rows = buildDetailedPaymentSummaryRows([], []);
   const methods = rows.map((r) => r.method);
 
-  assert.deepEqual(methods.slice(0, 7), [
+  assert.deepEqual(methods.slice(0, 8), [
     "CASH",
     "POS",
     "TRANSFER",
     "QPAY",
+    "ONLINE_BOOKING_DEPOSIT",
     "APPLICATION",
     "INSURANCE",
     "VOUCHER",

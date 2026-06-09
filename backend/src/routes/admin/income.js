@@ -6,6 +6,7 @@ import {
   allocatePaymentProportionalByRemaining,
   deallocatePaymentProportionalByAllocated,
   computeOverrideSalesFromAllocations,
+  computeLineNetWithSpecialMethodMultiplier,
 } from "../../utils/incomeHelpers.js";
 import {
   buildDoctorScheduleSlotIndex,
@@ -21,6 +22,7 @@ const INCLUDED_METHODS = new Set([
   "POS",
   "TRANSFER",
   "QPAY",
+  "ONLINE_BOOKING_DEPOSIT",
   "WALLET",
   "VOUCHER",
   "OTHER", // when active -> treated as CASH
@@ -31,6 +33,7 @@ const METHOD_LABELS = {
   POS: "POS",
   TRANSFER: "Шилжүүлэг",
   QPAY: "QPay",
+  ONLINE_BOOKING_DEPOSIT: "онлайн цаг захиалга",
   WALLET: "Хэтэвч",
   VOUCHER: "Купон",
   OTHER: "Бусад",
@@ -52,10 +55,13 @@ const REQUIRED_PAYMENT_METHODS = [
   "POS",
   "TRANSFER",
   "QPAY",
+  "ONLINE_BOOKING_DEPOSIT",
   "APPLICATION",
   "INSURANCE",
   "VOUCHER",
 ];
+const ONLINE_BOOKING_DEPOSIT_METHOD = "ONLINE_BOOKING_DEPOSIT";
+const ONLINE_BOOKING_DEPOSIT_MULTIPLIER = 0.9;
 
 function inRange(ts, start, end) {
   return ts >= start && ts < end;
@@ -493,6 +499,7 @@ export async function computeDoctorsIncomeData({
 
     // itemAllocationBase accumulates the pre-feeMultiplier payment allocation per line.
     const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+    const itemAllocationOnlineDeposit = new Map(serviceItems.map((it) => [it.id, 0]));
 
     let barterSum = 0;
 
@@ -524,6 +531,12 @@ export async function computeDoctorsIncomeData({
           if (!item) continue;
           const allocAmt = Number(alloc.amount || 0);
           itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+          if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+            itemAllocationOnlineDeposit.set(
+              item.id,
+              (itemAllocationOnlineDeposit.get(item.id) || 0) + allocAmt
+            );
+          }
           remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
         }
       } else if (payAmt > 0) {
@@ -531,6 +544,12 @@ export async function computeDoctorsIncomeData({
         const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
         for (const [id, amt] of allocs) {
           itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+          if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+            itemAllocationOnlineDeposit.set(
+              id,
+              (itemAllocationOnlineDeposit.get(id) || 0) + amt
+            );
+          }
         }
       } else if (payAmt < 0) {
         const deallocs = deallocatePaymentProportionalByAllocated(
@@ -539,6 +558,12 @@ export async function computeDoctorsIncomeData({
           itemAllocationBase
         );
         for (const [id, amt] of deallocs) {
+          if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+            itemAllocationOnlineDeposit.set(
+              id,
+              Math.max(0, (itemAllocationOnlineDeposit.get(id) || 0) - amt)
+            );
+          }
           remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
         }
       }
@@ -563,7 +588,15 @@ export async function computeDoctorsIncomeData({
       // Sum proportional allocations for non-IMAGING lines.
       let salesFromIncluded = 0;
       for (const it of nonImagingServiceItems) {
-        const itemSales = itemAllocationBase.get(it.id) || 0;
+        const itemSales = computeLineNetWithSpecialMethodMultiplier(
+          it.id,
+          itemAllocationBase,
+          itemAllocationOnlineDeposit,
+          {
+            defaultMultiplier: 1,
+            specialMultiplier: ONLINE_BOOKING_DEPOSIT_MULTIPLIER,
+          }
+        );
         salesFromIncluded += itemSales;
         if (itemSales > 0) {
           acc.serviceCount += Number(it.quantity || 0);
@@ -605,7 +638,15 @@ export async function computeDoctorsIncomeData({
 
       for (const it of serviceItems) {
         const service = it.service;
-        const lineNet = (itemAllocationBase.get(it.id) || 0) * feeMultiplier;
+        const lineNet = computeLineNetWithSpecialMethodMultiplier(
+          it.id,
+          itemAllocationBase,
+          itemAllocationOnlineDeposit,
+          {
+            defaultMultiplier: feeMultiplier,
+            specialMultiplier: ONLINE_BOOKING_DEPOSIT_MULTIPLIER,
+          }
+        );
         if (lineNet <= 0) continue;
 
         if (service?.category === "IMAGING") {
@@ -1584,6 +1625,7 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
       const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
       const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+      const itemAllocationOnlineDeposit = new Map(serviceItems.map((it) => [it.id, 0]));
 
       let barterSum = 0;
 
@@ -1614,6 +1656,12 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
             if (!item) continue;
             const allocAmt = Number(alloc.amount || 0);
             itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+            if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+              itemAllocationOnlineDeposit.set(
+                item.id,
+                (itemAllocationOnlineDeposit.get(item.id) || 0) + allocAmt
+              );
+            }
             remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
           }
         } else if (payAmt > 0) {
@@ -1621,6 +1669,12 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
           const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
           for (const [id, amt] of allocs) {
             itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+            if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+              itemAllocationOnlineDeposit.set(
+                id,
+                (itemAllocationOnlineDeposit.get(id) || 0) + amt
+              );
+            }
           }
         } else if (payAmt < 0) {
           const deallocs = deallocatePaymentProportionalByAllocated(
@@ -1629,6 +1683,12 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
             itemAllocationBase
           );
           for (const [id, amt] of deallocs) {
+            if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+              itemAllocationOnlineDeposit.set(
+                id,
+                Math.max(0, (itemAllocationOnlineDeposit.get(id) || 0) - amt)
+              );
+            }
             remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
           }
         }
@@ -1646,7 +1706,15 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
       } else {
         // Sum equal-split allocations for non-IMAGING lines into their category buckets.
         for (const it of nonImagingServiceItems) {
-          const amt = itemAllocationBase.get(it.id) || 0;
+          const amt = computeLineNetWithSpecialMethodMultiplier(
+            it.id,
+            itemAllocationBase,
+            itemAllocationOnlineDeposit,
+            {
+              defaultMultiplier: 1,
+              specialMultiplier: ONLINE_BOOKING_DEPOSIT_MULTIPLIER,
+            }
+          );
           if (amt <= 0) continue;
           const k = bucketKeyForService(it.service);
           buckets[k].salesMnt += amt;
@@ -1678,7 +1746,15 @@ router.get("/doctors-income/:doctorId/details", async (req, res) => {
 
         for (const it of serviceItems) {
           const service = it.service;
-          const lineNet = (itemAllocationBase.get(it.id) || 0) * feeMultiplier;
+          const lineNet = computeLineNetWithSpecialMethodMultiplier(
+            it.id,
+            itemAllocationBase,
+            itemAllocationOnlineDeposit,
+            {
+              defaultMultiplier: feeMultiplier,
+              specialMultiplier: ONLINE_BOOKING_DEPOSIT_MULTIPLIER,
+            }
+          );
           if (lineNet <= 0) continue;
 
           if (service?.category === "IMAGING") {
@@ -1847,6 +1923,7 @@ router.get("/doctors-income/:doctorId/details/lines", async (req, res) => {
 
       const remainingDue = new Map(serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0]));
       const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+      const itemAllocationOnlineDeposit = new Map(serviceItems.map((it) => [it.id, 0]));
 
       let barterSum = 0;
       const methodsInRange = new Set();
@@ -1879,12 +1956,24 @@ router.get("/doctors-income/:doctorId/details/lines", async (req, res) => {
             if (!item) continue;
             const allocAmt = Number(alloc.amount || 0);
             itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+            if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+              itemAllocationOnlineDeposit.set(
+                item.id,
+                (itemAllocationOnlineDeposit.get(item.id) || 0) + allocAmt
+              );
+            }
             remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
           }
         } else if (payAmt > 0) {
           const allocs = allocatePaymentProportionalByRemaining(payAmt, serviceLineIds, remainingDue);
           for (const [id, amt] of allocs) {
             itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+            if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+              itemAllocationOnlineDeposit.set(
+                id,
+                (itemAllocationOnlineDeposit.get(id) || 0) + amt
+              );
+            }
           }
         } else if (payAmt < 0) {
           const deallocs = deallocatePaymentProportionalByAllocated(
@@ -1893,6 +1982,12 @@ router.get("/doctors-income/:doctorId/details/lines", async (req, res) => {
             itemAllocationBase
           );
           for (const [id, amt] of deallocs) {
+            if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+              itemAllocationOnlineDeposit.set(
+                id,
+                Math.max(0, (itemAllocationOnlineDeposit.get(id) || 0) - amt)
+              );
+            }
             remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
           }
         }
@@ -1971,8 +2066,17 @@ router.get("/doctors-income/:doctorId/details/lines", async (req, res) => {
           if (itemBucketKey !== categoryKey) continue;
         }
 
-        const allocBase = itemAllocationBase.get(it.id) || 0;
-        const allocatedPaid = Math.round(allocBase * feeMultiplier);
+        const allocatedPaid = Math.round(
+          computeLineNetWithSpecialMethodMultiplier(
+            it.id,
+            itemAllocationBase,
+            itemAllocationOnlineDeposit,
+            {
+              defaultMultiplier: feeMultiplier,
+              specialMultiplier: ONLINE_BOOKING_DEPOSIT_MULTIPLIER,
+            }
+          )
+        );
 
         // Skip lines that have no allocation (not paid in range)
         if (allocatedPaid <= 0) continue;
