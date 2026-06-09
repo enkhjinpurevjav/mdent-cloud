@@ -85,6 +85,10 @@ type InvoiceResponse = {
     qrData?: string | null;
     lottery?: string | null;
   } | null;
+  onlineBookingDepositDefault?: {
+    method: string;
+    amount: number;
+  } | null;
 };
 
 type EncounterService = {
@@ -383,8 +387,25 @@ function BillingPaymentSection({
       : 0;
 
   useEffect(() => {
-    setEnabled({});
-    setAmounts({});
+    const nextEnabled: Record<string, boolean> = {};
+    const nextAmounts: Record<string, string> = {};
+    const hasAppliedOnlineDeposit = (invoice.payments || []).some(
+      (p) => String(p.method || "").trim().toUpperCase() === "ONLINE_BOOKING_DEPOSIT"
+    );
+    if (
+      invoice.onlineBookingDepositDefault
+      && invoice.onlineBookingDepositDefault.amount > 0
+      && !hasAppliedOnlineDeposit
+    ) {
+      const methodKey = String(invoice.onlineBookingDepositDefault.method || "").trim();
+      if (methodKey) {
+        nextEnabled[methodKey] = true;
+        nextAmounts[methodKey] = String(invoice.onlineBookingDepositDefault.amount);
+      }
+    }
+
+    setEnabled(nextEnabled);
+    setAmounts(nextAmounts);
     setInsuranceProviderId(null);
     setOtherNote("");
     setVoucherCode("");
@@ -408,7 +429,7 @@ function BillingPaymentSection({
       (it) => it.itemType === "SERVICE" && (it.alreadyAllocated ?? 0) > 0
     );
     setSplitPayment(hasExistingAllocations);
-  }, [invoice.id]);
+  }, [invoice.id, invoice.onlineBookingDepositDefault, invoice.payments, invoice.items]);
 
   const handleToggle = (methodKey: string, checked: boolean) => {
     // In marker workflow, only one payment method is allowed at a time.

@@ -2,12 +2,14 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { applyPaymentToInvoice, computePaidTotal } from "../services/settlementService.js";
 import { applyWalletSettlement } from "../services/walletSettlementService.js";
+import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
 import { sseBroadcast } from "./appointments.js";
 
 const prisma = new PrismaClient();
 const router = express.Router();
 const ONLINE_BOOKING_DEPOSIT_METHOD = "ONLINE_BOOKING_DEPOSIT";
 const ONLINE_BOOKING_NOTE_BOOKING_ID_REGEX = /\[ONLINE BOOKING #(\d+)\]/i;
+const ONLINE_BOOKING_DEPOSIT_AMOUNT = getOnlineBookingDepositAmount();
 
 /**
  * Resolve service branch from encounter appointment for billing invoices.
@@ -54,47 +56,33 @@ function extractOnlineBookingIdFromAppointmentNotes(notes) {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-async function loadInvoiceForBillingResponse(trx, invoiceId) {
-  return trx.invoice.findUnique({
-    where: { id: Number(invoiceId) },
-    include: {
-      items: { include: { service: true } },
-      eBarimtReceipt: true,
-      payments: { include: { createdBy: { select: { id: true, name: true, ovog: true } } } },
-    },
-  });
-}
-
-async function ensureOnlineBookingDepositPaymentForInvoice(
+export async function resolveOnlineBookingDepositDefaultForInvoice(
   trx,
-  { invoice, appointment, appointmentId = null, createdByUserId = null }
+  { invoice, appointment }
 ) {
-  if (!invoice?.id) return { invoice, appliedAmount: 0 };
+  if (!invoice?.id) return null;
   if (!appointment || String(appointment.source || "").toUpperCase() !== "ONLINE_BOOKING") {
-    return { invoice, appliedAmount: 0 };
+    return null;
   }
 
   const bookingId = extractOnlineBookingIdFromAppointmentNotes(appointment.notes);
-  if (!bookingId) return { invoice, appliedAmount: 0 };
+  if (!bookingId) return null;
 
   const deposit = await trx.bookingDeposit.findUnique({
     where: { bookingId },
     select: {
       id: true,
       status: true,
-      amount: true,
       paidAmount: true,
-      qpayPaymentId: true,
-      paidAt: true,
     },
   });
   if (!deposit || String(deposit.status || "").toUpperCase() !== "PAID") {
-    return { invoice, appliedAmount: 0 };
+    return null;
   }
 
-  const expectedDepositAmount = Number(deposit.paidAmount ?? deposit.amount ?? 0);
+  const expectedDepositAmount = Number(ONLINE_BOOKING_DEPOSIT_AMOUNT || 0);
   if (!Number.isFinite(expectedDepositAmount) || expectedDepositAmount <= 0) {
-    return { invoice, appliedAmount: 0 };
+    return null;
   }
 
   const existingDepositPayments = await trx.payment.findMany({
@@ -110,7 +98,7 @@ async function ensureOnlineBookingDepositPaymentForInvoice(
   );
   const remainingDepositAmount = Math.max(expectedDepositAmount - alreadyAppliedAmount, 0);
   if (remainingDepositAmount <= 0) {
-    return { invoice, appliedAmount: 0 };
+    return null;
   }
 
   const allPayments = await trx.payment.findMany({
@@ -124,36 +112,18 @@ async function ensureOnlineBookingDepositPaymentForInvoice(
       : Number(invoice.totalAmount || 0);
   const remainingInvoiceAmount = Math.max(baseAmount - alreadyPaidTotal, 0);
   if (remainingInvoiceAmount <= 0) {
-    return { invoice, appliedAmount: 0 };
+    return null;
   }
 
-  const applyAmount = Math.min(remainingDepositAmount, remainingInvoiceAmount);
-  if (applyAmount <= 0) {
-    return { invoice, appliedAmount: 0 };
+  const defaultAmount = Math.min(remainingDepositAmount, remainingInvoiceAmount);
+  if (defaultAmount <= 0) {
+    return null;
   }
 
-  const invoiceForSettlement = {
-    ...invoice,
-    encounter: { appointmentId: Number(appointmentId || 0) || null },
+  return {
+    method: ONLINE_BOOKING_DEPOSIT_METHOD,
+    amount: defaultAmount,
   };
-
-  await applyPaymentToInvoice(trx, {
-    invoice: invoiceForSettlement,
-    payAmount: applyAmount,
-    methodStr: ONLINE_BOOKING_DEPOSIT_METHOD,
-    meta: {
-      source: "ONLINE_BOOKING_DEPOSIT",
-      autoApplied: true,
-      bookingId,
-      bookingDepositId: deposit.id,
-      qpayPaymentId: deposit.qpayPaymentId || null,
-      paidAt: deposit.paidAt ? deposit.paidAt.toISOString() : null,
-    },
-    createdByUserId,
-  });
-
-  const refreshedInvoice = await loadInvoiceForBillingResponse(trx, invoice.id);
-  return { invoice: refreshedInvoice || invoice, appliedAmount: applyAmount };
 }
 
 /**
@@ -354,15 +324,10 @@ router.get("/encounters/:id/invoice", async (req, res) => {
     let existingInvoice = encounter.invoice;
 
     if (existingInvoice) {
-      const ensured = await prisma.$transaction((trx) =>
-        ensureOnlineBookingDepositPaymentForInvoice(trx, {
-          invoice: existingInvoice,
-          appointment: encounter.appointment,
-          appointmentId: encounter.appointmentId ?? null,
-          createdByUserId: req.user?.id || null,
-        })
-      );
-      existingInvoice = ensured.invoice;
+      const onlineBookingDepositDefault = await resolveOnlineBookingDepositDefaultForInvoice(prisma, {
+        invoice: existingInvoice,
+        appointment: encounter.appointment,
+      });
 
       const discountNum = discountPercentToNumber(existingInvoice.discountPercent);
       const balanceData = await getPatientBalance(patient.id);
@@ -458,6 +423,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         patientOvog: patient.ovog ?? null,
         patientName: patient.name,
         patientRegNo: patient.regNo ?? null,
+        onlineBookingDepositDefault,
       });
     }
 
@@ -531,6 +497,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       patientOvog: patient.ovog ?? null,
       patientName: patient.name,
       patientRegNo: patient.regNo ?? null,
+      onlineBookingDepositDefault: null,
     });
   } catch (err) {
     console.error("GET /encounters/:id/invoice failed:", err);
@@ -873,15 +840,10 @@ router.post("/encounters/:id/invoice", async (req, res) => {
       });
     }
 
-    const ensured = await prisma.$transaction((trx) =>
-      ensureOnlineBookingDepositPaymentForInvoice(trx, {
-        invoice,
-        appointment: encounter.appointment,
-        appointmentId: encounter.appointmentId ?? null,
-        createdByUserId: req.user?.id || null,
-      })
-    );
-    invoice = ensured.invoice;
+    const onlineBookingDepositDefault = await resolveOnlineBookingDepositDefaultForInvoice(prisma, {
+      invoice,
+      appointment: encounter.appointment,
+    });
 
     // Standardized canonical Invoice response for POST (structure save)
     const respDiscount = discountPercentToNumber(invoice.discountPercent);
@@ -926,6 +888,7 @@ router.post("/encounters/:id/invoice", async (req, res) => {
         serviceCategory: it.service?.category ?? null,
         alreadyAllocated: 0, // No allocations mutated during structure save
       })),
+      onlineBookingDepositDefault,
     });
   } catch (err) {
     console.error("POST /encounters/:id/invoice failed:", err);
