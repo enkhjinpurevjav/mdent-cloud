@@ -90,6 +90,7 @@ describe("resolveOnlineBookingDepositDefaultForInvoice", () => {
 
   it("returns preselected online deposit method and amount when paid deposit exists", async () => {
     const trx = {
+      booking: { findFirst: async () => null },
       bookingDeposit: {
         findUnique: async () => ({
           status: "PAID",
@@ -114,6 +115,64 @@ describe("resolveOnlineBookingDepositDefaultForInvoice", () => {
 
     assert.equal(result?.method, "ONLINE_BOOKING_DEPOSIT");
     assert.equal(typeof result?.amount, "number");
+    assert.ok((result?.amount || 0) > 0);
+  });
+
+  it("falls back to booking lookup when marker is missing in appointment notes", async () => {
+    let bookingLookupCalls = 0;
+    const trx = {
+      booking: {
+        findFirst: async () => {
+          bookingLookupCalls += 1;
+          return { id: 555 };
+        },
+      },
+      bookingDeposit: {
+        findUnique: async ({ where }) => {
+          if (where?.bookingId === 555) {
+            return { status: "PAID", paidAmount: 20000 };
+          }
+          return null;
+        },
+      },
+      payment: { findMany: async () => [] },
+    };
+
+    const result = await resolveOnlineBookingDepositDefaultForInvoice(trx, {
+      invoice: { id: 22, patientId: 7, finalAmount: 150000, totalAmount: 150000 },
+      appointment: {
+        source: "ONLINE_BOOKING",
+        notes: "",
+        branchId: 1,
+        doctorId: 9,
+        patientId: 7,
+        scheduledAt: "2026-06-09T07:00:00.000Z",
+      },
+    });
+
+    assert.ok(bookingLookupCalls > 0);
+    assert.equal(result?.method, "ONLINE_BOOKING_DEPOSIT");
+    assert.ok((result?.amount || 0) > 0);
+  });
+
+  it("supports provisional invoices (no invoice id yet)", async () => {
+    const trx = {
+      booking: { findFirst: async () => null },
+      bookingDeposit: {
+        findUnique: async () => ({ status: "PAID", paidAmount: 20000 }),
+      },
+      payment: { findMany: async () => [] },
+    };
+
+    const result = await resolveOnlineBookingDepositDefaultForInvoice(trx, {
+      invoice: { id: null, patientId: 9, finalAmount: 180000, totalAmount: 180000 },
+      appointment: {
+        source: "ONLINE_BOOKING",
+        notes: "[ONLINE BOOKING #999]",
+      },
+    });
+
+    assert.equal(result?.method, "ONLINE_BOOKING_DEPOSIT");
     assert.ok((result?.amount || 0) > 0);
   });
 });
