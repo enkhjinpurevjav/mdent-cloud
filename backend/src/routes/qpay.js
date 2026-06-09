@@ -10,6 +10,62 @@ const router = express.Router();
 
 const ONLINE_BOOKING_DEPOSIT_AMOUNT = getOnlineBookingDepositAmount();
 
+function toSafeDate(value) {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+async function markOnlineBookingConfirmedAfterPaid(bookingId, payment = null) {
+  await prisma.$transaction(async (tx) => {
+    if (payment) {
+      await tx.bookingDeposit.update({
+        where: { bookingId },
+        data: {
+          status: "PAID",
+          paidAmount: payment.paidAmount,
+          qpayPaymentId: payment.paymentId || null,
+          paidAt: payment.paidAt,
+          raw: payment.raw ?? undefined,
+        },
+      });
+    }
+
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { status: BookingStatus.ONLINE_CONFIRMED },
+    });
+
+    await tx.onlineBookingDraft.updateMany({
+      where: { bookingId, status: { not: "PAID" } },
+      data: { status: "PAID" },
+    });
+  });
+}
+
+async function syncOnlineBookingPaidSideEffects(bookingId) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await ensureOnlineBookingPatientForPayment(tx, bookingId);
+      await tx.onlineBookingDraft.updateMany({
+        where: { bookingId, status: { not: "PAID" } },
+        data: { status: "PAID" },
+      });
+    });
+  } catch (patientErr) {
+    console.error("QPay booking callback patient sync failed:", patientErr);
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await ensureOnlineAppointmentForBooking(tx, bookingId);
+    });
+  } catch (appointmentErr) {
+    console.error("QPay booking callback appointment sync failed:", appointmentErr);
+  }
+}
+
 /**
  * POST /api/qpay/invoice
  * Create QPay invoice for an M Dent invoice
@@ -224,18 +280,8 @@ async function handleBookingCallback(bookingId, token, meta = {}) {
 
     // Already settled
     if (deposit.status === "PAID") {
-      await prisma.$transaction(async (tx) => {
-        await tx.booking.update({
-          where: { id: bid },
-          data: { status: BookingStatus.ONLINE_CONFIRMED },
-        });
-        await ensureOnlineBookingPatientForPayment(tx, bid);
-        await tx.onlineBookingDraft.updateMany({
-          where: { bookingId: bid, status: { not: "PAID" } },
-          data: { status: "PAID" },
-        });
-        await ensureOnlineAppointmentForBooking(tx, bid);
-      });
+      await markOnlineBookingConfirmedAfterPaid(bid);
+      await syncOnlineBookingPaidSideEffects(bid);
       return;
     }
     if (deposit.status === "EXPIRED" || deposit.status === "CANCELLED") {
@@ -246,28 +292,13 @@ async function handleBookingCallback(bookingId, token, meta = {}) {
     const checkResult = await qpayService.checkInvoicePaid(deposit.qpayInvoiceId, deposit.branchId);
 
     if (checkResult.paid && checkResult.paidAmount >= ONLINE_BOOKING_DEPOSIT_AMOUNT) {
-      await prisma.$transaction(async (tx) => {
-        await tx.bookingDeposit.update({
-          where: { bookingId: bid },
-          data: {
-            status: "PAID",
-            paidAmount: checkResult.paidAmount,
-            qpayPaymentId: checkResult.paymentId,
-            paidAt: checkResult.paidAt ? new Date(checkResult.paidAt) : new Date(),
-            raw: checkResult.raw,
-          },
-        });
-        await tx.booking.update({
-          where: { id: bid },
-          data: { status: BookingStatus.ONLINE_CONFIRMED },
-        });
-        await ensureOnlineBookingPatientForPayment(tx, bid);
-        await tx.onlineBookingDraft.updateMany({
-          where: { bookingId: bid, status: { not: "PAID" } },
-          data: { status: "PAID" },
-        });
-        await ensureOnlineAppointmentForBooking(tx, bid);
+      await markOnlineBookingConfirmedAfterPaid(bid, {
+        paidAmount: checkResult.paidAmount,
+        paymentId: checkResult.paymentId || null,
+        paidAt: toSafeDate(checkResult.paidAt) || new Date(),
+        raw: checkResult.raw,
       });
+      await syncOnlineBookingPaidSideEffects(bid);
       console.log(`QPay booking callback: bookingId=${bid} confirmed`);
     }
   } catch (err) {
