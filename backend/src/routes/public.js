@@ -1054,7 +1054,58 @@ router.get("/online-booking/drafts/:draftId/payment-status", async (req, res) =>
       checkResult = await qpayService.checkInvoicePaid(deposit.qpayInvoiceId, deposit.branchId);
     } catch (checkErr) {
       console.error("Draft payment check failed:", checkErr);
-      return res.status(502).json({ error: "Payment check failed: " + checkErr.message });
+
+      // Callback may have already completed in parallel even when polling check fails.
+      const latestDeposit = await prisma.bookingDeposit.findUnique({
+        where: { bookingId },
+      });
+      if (latestDeposit?.status === "PAID") {
+        await prisma.$transaction(async (tx) => {
+          await tx.booking.update({
+            where: { id: bookingId },
+            data: { status: BookingStatus.ONLINE_CONFIRMED },
+          });
+          await ensureOnlineBookingPatientForPayment(tx, bookingId, { draftId: draft.id });
+          if (draft.status !== "PAID") {
+            await tx.onlineBookingDraft.update({
+              where: { id: draft.id },
+              data: { status: "PAID" },
+            });
+          }
+          await ensureOnlineAppointmentForBooking(tx, bookingId);
+        });
+        return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });
+      }
+
+      if (isExpired) {
+        try {
+          await qpayService.cancelInvoice(deposit.qpayInvoiceId, deposit.branchId);
+        } catch (cancelErr) {
+          console.error("QPay invoice cancel failed after check error:", cancelErr);
+        }
+        await prisma.$transaction([
+          prisma.bookingDeposit.update({
+            where: { bookingId },
+            data: { status: "EXPIRED" },
+          }),
+          prisma.booking.update({
+            where: { id: bookingId },
+            data: { status: BookingStatus.ONLINE_EXPIRED },
+          }),
+          prisma.onlineBookingDraft.update({
+            where: { id: draft.id },
+            data: { status: "EXPIRED" },
+          }),
+        ]);
+        return res.json({ status: "EXPIRED", bookingStatus: BookingStatus.ONLINE_EXPIRED });
+      }
+
+      // Do not hard-fail the user flow for transient provider outages; keep polling.
+      return res.json({
+        status: "PENDING",
+        bookingStatus: BookingStatus.ONLINE_HELD,
+        expiresAt: deposit.holdExpiresAt.toISOString(),
+      });
     }
 
     if (checkResult.paid && checkResult.paidAmount >= ONLINE_BOOKING_DEPOSIT_AMOUNT) {

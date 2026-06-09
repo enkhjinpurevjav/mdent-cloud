@@ -2,6 +2,7 @@ import { beforeEach, afterEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   __resetTokenCacheForTests,
+  checkInvoicePaid,
   createInvoice,
   getAccessToken,
 } from "../services/qpayService.js";
@@ -181,5 +182,72 @@ describe("qpayService token caching", () => {
         link: "https://pay.example.com/c",
       },
     ]);
+  });
+
+  it("parses payment check rows from nested payload shape", async () => {
+    global.fetch = async (url) => {
+      const normalizedUrl = String(url);
+      if (normalizedUrl.endsWith("/v2/auth/token")) {
+        return makeJsonResponse(200, {
+          access_token: "token-1",
+          expires_in: 86400,
+        });
+      }
+
+      if (normalizedUrl.endsWith("/v2/payment/check")) {
+        return makeJsonResponse(200, {
+          result: {
+            rows: [
+              {
+                paymentId: "p-1",
+                paymentStatus: "SUCCESS",
+                paymentAmount: 20000,
+                transactionType: "qpay",
+                paidAt: "2026-06-09T00:00:00.000Z",
+              },
+            ],
+          },
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const result = await checkInvoicePaid("inv-nested", 1);
+
+    assert.equal(result.paid, true);
+    assert.equal(result.paidAmount, 20000);
+    assert.equal(result.paymentId, "p-1");
+    assert.equal(result.transactionType, "qpay");
+    assert.equal(result.paidAt, "2026-06-09T00:00:00.000Z");
+  });
+
+  it("treats non-array payment rows as unpaid instead of throwing", async () => {
+    global.fetch = async (url) => {
+      const normalizedUrl = String(url);
+      if (normalizedUrl.endsWith("/v2/auth/token")) {
+        return makeJsonResponse(200, {
+          access_token: "token-1",
+          expires_in: 86400,
+        });
+      }
+
+      if (normalizedUrl.endsWith("/v2/payment/check")) {
+        return makeJsonResponse(200, {
+          rows: {
+            payment_id: "p-bad-shape",
+            payment_status: "PAID",
+          },
+        });
+      }
+
+      throw new Error(`Unexpected URL: ${url}`);
+    };
+
+    const result = await checkInvoicePaid("inv-bad-shape", 1);
+
+    assert.equal(result.paid, false);
+    assert.equal(result.paidAmount, 0);
+    assert.equal(result.payments.length, 0);
   });
 });

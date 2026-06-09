@@ -162,32 +162,64 @@ router.post("/check", async (req, res) => {
  * QPay booking deposit callback endpoint.
  * Validates token, calls payment/check, updates booking status.
  */
-async function handleBookingCallback(bookingId, token) {
-  if (!bookingId || !token) {
-    console.warn("QPay booking callback: missing bookingId or token");
-    return;
-  }
-
-  const bid = Number(bookingId);
-  if (Number.isNaN(bid)) {
-    console.warn("QPay booking callback: invalid bookingId", bookingId);
-    return;
-  }
+async function handleBookingCallback(bookingId, token, meta = {}) {
+  const normalizedInvoiceId = meta.invoiceId ? String(meta.invoiceId) : null;
+  const normalizedSenderInvoiceNo = meta.senderInvoiceNo ? String(meta.senderInvoiceNo) : null;
+  const parsedBookingId = Number(bookingId);
 
   try {
-    const deposit = await prisma.bookingDeposit.findUnique({
-      where: { bookingId: bid },
-    });
+    let deposit = null;
+
+    if (!Number.isNaN(parsedBookingId) && parsedBookingId > 0) {
+      deposit = await prisma.bookingDeposit.findUnique({
+        where: { bookingId: parsedBookingId },
+      });
+    }
+
+    if (!deposit && normalizedInvoiceId) {
+      deposit = await prisma.bookingDeposit.findUnique({
+        where: { qpayInvoiceId: normalizedInvoiceId },
+      });
+    }
+
+    if (!deposit && normalizedSenderInvoiceNo) {
+      deposit = await prisma.bookingDeposit.findUnique({
+        where: { senderInvoiceNo: normalizedSenderInvoiceNo },
+      });
+    }
 
     if (!deposit) {
-      console.warn("QPay booking callback: deposit not found for bookingId", bid);
+      console.warn("QPay booking callback: deposit not found", {
+        bookingId,
+        invoiceId: normalizedInvoiceId,
+        senderInvoiceNo: normalizedSenderInvoiceNo,
+      });
       return;
     }
 
-    // Validate token
-    if (deposit.callbackToken !== String(token)) {
-      console.warn("QPay booking callback: invalid token for bookingId", bid);
-      return;
+    const bid = deposit.bookingId;
+    if (token) {
+      if (deposit.callbackToken !== String(token)) {
+        console.warn("QPay booking callback: invalid token for bookingId", bid);
+        return;
+      }
+    } else {
+      const hasProviderIdentifiers = Boolean(normalizedInvoiceId || normalizedSenderInvoiceNo);
+      const invoiceMatch = !normalizedInvoiceId
+        || String(deposit.qpayInvoiceId) === normalizedInvoiceId;
+      const senderMatch = !normalizedSenderInvoiceNo
+        || String(deposit.senderInvoiceNo) === normalizedSenderInvoiceNo;
+
+      // If callback did not return our query params, accept only when linked by QPay identifiers.
+      if (!hasProviderIdentifiers || !invoiceMatch || !senderMatch) {
+        console.warn("QPay booking callback: insufficient identifiers without token", {
+          bookingId,
+          invoiceId: normalizedInvoiceId,
+          senderInvoiceNo: normalizedSenderInvoiceNo,
+          resolvedBookingId: bid,
+        });
+        return;
+      }
     }
 
     // Already settled
@@ -198,6 +230,10 @@ async function handleBookingCallback(bookingId, token) {
           data: { status: BookingStatus.ONLINE_CONFIRMED },
         });
         await ensureOnlineBookingPatientForPayment(tx, bid);
+        await tx.onlineBookingDraft.updateMany({
+          where: { bookingId: bid, status: { not: "PAID" } },
+          data: { status: "PAID" },
+        });
         await ensureOnlineAppointmentForBooking(tx, bid);
       });
       return;
@@ -226,6 +262,10 @@ async function handleBookingCallback(bookingId, token) {
           data: { status: BookingStatus.ONLINE_CONFIRMED },
         });
         await ensureOnlineBookingPatientForPayment(tx, bid);
+        await tx.onlineBookingDraft.updateMany({
+          where: { bookingId: bid, status: { not: "PAID" } },
+          data: { status: "PAID" },
+        });
         await ensureOnlineAppointmentForBooking(tx, bid);
       });
       console.log(`QPay booking callback: bookingId=${bid} confirmed`);
@@ -239,7 +279,11 @@ router.get("/booking/callback", async (req, res) => {
   const { bookingId, token } = req.query || {};
   // Respond 200 immediately
   res.status(200).send("OK");
-  await handleBookingCallback(bookingId, token);
+  await handleBookingCallback(bookingId, token, {
+    method: "GET",
+    invoiceId: req.query?.invoice_id || req.query?.invoiceId || null,
+    senderInvoiceNo: req.query?.sender_invoice_no || req.query?.senderInvoiceNo || null,
+  });
 });
 
 router.post("/booking/callback", async (req, res) => {
@@ -247,7 +291,21 @@ router.post("/booking/callback", async (req, res) => {
   const token = req.query.token || req.body?.token;
   // Respond 200 immediately
   res.status(200).json({ success: true });
-  await handleBookingCallback(bookingId, token);
+  await handleBookingCallback(bookingId, token, {
+    method: "POST",
+    invoiceId:
+      req.query?.invoice_id
+      || req.query?.invoiceId
+      || req.body?.invoice_id
+      || req.body?.invoiceId
+      || null,
+    senderInvoiceNo:
+      req.query?.sender_invoice_no
+      || req.query?.senderInvoiceNo
+      || req.body?.sender_invoice_no
+      || req.body?.senderInvoiceNo
+      || null,
+  });
 });
 
 /**

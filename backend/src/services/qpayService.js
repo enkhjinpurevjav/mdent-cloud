@@ -476,18 +476,71 @@ export async function checkInvoicePaid(qpayInvoiceId, branchId) {
     payload,
   });
 
+  const rawText = await response.text().catch(() => "");
   if (!response.ok) {
-    const errorText = await response.text().catch(() => "");
     throw new Error(
-      `QPay check payment failed (${response.status}): ${errorText || response.statusText}`
+      `QPay check payment failed (${response.status}): ${rawText || response.statusText}`
     );
   }
 
-  const data = await response.json();
+  let data;
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch (parseErr) {
+    throw new Error(
+      `QPay check payment returned invalid JSON: ${parseErr.message}`
+    );
+  }
+
+  const rawRows =
+    (Array.isArray(data?.rows) && data.rows)
+    || (Array.isArray(data?.result?.rows) && data.result.rows)
+    || (Array.isArray(data?.data?.rows) && data.data.rows)
+    || (Array.isArray(data?.payments) && data.payments)
+    || [];
+
+  const normalizeRow = (row = {}) => ({
+    payment_id:
+      row.payment_id
+      ?? row.paymentId
+      ?? row.transaction_id
+      ?? row.transactionId
+      ?? null,
+    payment_status: String(
+      row.payment_status
+      ?? row.paymentStatus
+      ?? row.status
+      ?? ""
+    ).toUpperCase(),
+    payment_amount: Number(
+      row.payment_amount
+      ?? row.paymentAmount
+      ?? row.amount
+      ?? row.paid_amount
+      ?? 0
+    ),
+    transaction_type:
+      row.payment_wallet
+      ?? row.transaction_type
+      ?? row.transactionType
+      ?? row.wallet
+      ?? null,
+    payment_date:
+      row.payment_date
+      ?? row.paymentDate
+      ?? row.paid_at
+      ?? row.paidAt
+      ?? null,
+  });
 
   // Parse payment details
-  const rows = data.rows || [];
-  const paidRows = rows.filter((r) => r.payment_status === "PAID");
+  const rows = rawRows.map(normalizeRow);
+  const paidRows = rows.filter((r) => (
+    r.payment_status === "PAID"
+    || r.payment_status === "SUCCESS"
+    || r.payment_status === "COMPLETED"
+    || r.payment_status === "CONFIRMED"
+  ));
   const paid = paidRows.length > 0;
   const paidAmount = paidRows.reduce((sum, r) => sum + Number(r.payment_amount || 0), 0);
 
@@ -498,15 +551,9 @@ export async function checkInvoicePaid(qpayInvoiceId, branchId) {
     paid,
     paidAmount,
     paymentId: latestPayment?.payment_id || null,
-    transactionType: latestPayment?.payment_wallet || null,
+    transactionType: latestPayment?.transaction_type || null,
     paidAt: latestPayment?.payment_date || null,
-    payments: rows.map((r) => ({
-      payment_id: r.payment_id,
-      payment_status: r.payment_status,
-      payment_amount: r.payment_amount,
-      transaction_type: r.payment_wallet,
-      payment_date: r.payment_date,
-    })),
+    payments: rows,
     raw: data,
   };
 }
