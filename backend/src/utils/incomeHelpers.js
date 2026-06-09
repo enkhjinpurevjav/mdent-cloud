@@ -209,3 +209,61 @@ export function computeOverrideSalesFromAllocations(
     return sum + allocated * feeMultiplier;
   }, 0);
 }
+
+/**
+ * Compute effective line amount when a special payment method uses its own multiplier.
+ *
+ * Example:
+ * - regular allocations multiplier = 1.0
+ * - online booking deposit allocations multiplier = 0.9
+ *
+ * @param {number} itemId
+ * @param {Map<number, number>} itemAllocationBase
+ * @param {Map<number, number>} itemAllocationSpecial
+ * @param {{defaultMultiplier?: number, specialMultiplier?: number}} [options]
+ * @returns {number}
+ */
+export function computeLineNetWithSpecialMethodMultiplier(
+  itemId,
+  itemAllocationBase,
+  itemAllocationSpecial,
+  options = {}
+) {
+  const defaultMultiplier = Number(options.defaultMultiplier ?? 1);
+  const specialMultiplier = Number(options.specialMultiplier ?? 1);
+
+  const totalAllocated = Number(itemAllocationBase?.get(itemId) || 0);
+  const specialAllocatedRaw = Number(itemAllocationSpecial?.get(itemId) || 0);
+  const specialAllocated = Math.max(0, Math.min(totalAllocated, specialAllocatedRaw));
+  const regularAllocated = Math.max(0, totalAllocated - specialAllocated);
+
+  return regularAllocated * defaultMultiplier + specialAllocated * specialMultiplier;
+}
+
+/**
+ * Compute sales for non-imaging service lines with a special method multiplier.
+ *
+ * @param {Array<{id: number}>} nonImagingServiceItems
+ * @param {Map<number, number>} itemAllocationBase
+ * @param {Map<number, number>} itemAllocationSpecial
+ * @param {{defaultMultiplier?: number, specialMultiplier?: number}} [options]
+ * @returns {number}
+ */
+export function computeSalesWithSpecialMethodMultiplier(
+  nonImagingServiceItems,
+  itemAllocationBase,
+  itemAllocationSpecial,
+  options = {}
+) {
+  return (nonImagingServiceItems || []).reduce((sum, it) => {
+    return (
+      sum +
+      computeLineNetWithSpecialMethodMultiplier(
+        it.id,
+        itemAllocationBase,
+        itemAllocationSpecial,
+        options
+      )
+    );
+  }, 0);
+}

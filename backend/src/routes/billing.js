@@ -6,6 +6,8 @@ import { sseBroadcast } from "./appointments.js";
 
 const prisma = new PrismaClient();
 const router = express.Router();
+const ONLINE_BOOKING_DEPOSIT_METHOD = "ONLINE_BOOKING_DEPOSIT";
+const ONLINE_BOOKING_NOTE_BOOKING_ID_REGEX = /\[ONLINE BOOKING #(\d+)\]/i;
 
 /**
  * Resolve service branch from encounter appointment for billing invoices.
@@ -43,6 +45,115 @@ export function shouldCompleteMarkerAppointmentAfterBatchSettlement({
     Number.isInteger(numericAppointmentId) &&
     numericAppointmentId > 0
   );
+}
+
+function extractOnlineBookingIdFromAppointmentNotes(notes) {
+  const text = typeof notes === "string" ? notes : "";
+  const match = text.match(ONLINE_BOOKING_NOTE_BOOKING_ID_REGEX);
+  const id = Number(match?.[1] || 0);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function loadInvoiceForBillingResponse(trx, invoiceId) {
+  return trx.invoice.findUnique({
+    where: { id: Number(invoiceId) },
+    include: {
+      items: { include: { service: true } },
+      eBarimtReceipt: true,
+      payments: { include: { createdBy: { select: { id: true, name: true, ovog: true } } } },
+    },
+  });
+}
+
+async function ensureOnlineBookingDepositPaymentForInvoice(
+  trx,
+  { invoice, appointment, appointmentId = null, createdByUserId = null }
+) {
+  if (!invoice?.id) return { invoice, appliedAmount: 0 };
+  if (!appointment || String(appointment.source || "").toUpperCase() !== "ONLINE_BOOKING") {
+    return { invoice, appliedAmount: 0 };
+  }
+
+  const bookingId = extractOnlineBookingIdFromAppointmentNotes(appointment.notes);
+  if (!bookingId) return { invoice, appliedAmount: 0 };
+
+  const deposit = await trx.bookingDeposit.findUnique({
+    where: { bookingId },
+    select: {
+      id: true,
+      status: true,
+      amount: true,
+      paidAmount: true,
+      qpayPaymentId: true,
+      paidAt: true,
+    },
+  });
+  if (!deposit || String(deposit.status || "").toUpperCase() !== "PAID") {
+    return { invoice, appliedAmount: 0 };
+  }
+
+  const expectedDepositAmount = Number(deposit.paidAmount ?? deposit.amount ?? 0);
+  if (!Number.isFinite(expectedDepositAmount) || expectedDepositAmount <= 0) {
+    return { invoice, appliedAmount: 0 };
+  }
+
+  const existingDepositPayments = await trx.payment.findMany({
+    where: {
+      invoiceId: invoice.id,
+      method: ONLINE_BOOKING_DEPOSIT_METHOD,
+    },
+    select: { amount: true },
+  });
+  const alreadyAppliedAmount = existingDepositPayments.reduce(
+    (sum, row) => sum + Number(row.amount || 0),
+    0
+  );
+  const remainingDepositAmount = Math.max(expectedDepositAmount - alreadyAppliedAmount, 0);
+  if (remainingDepositAmount <= 0) {
+    return { invoice, appliedAmount: 0 };
+  }
+
+  const allPayments = await trx.payment.findMany({
+    where: { invoiceId: invoice.id },
+    select: { amount: true },
+  });
+  const alreadyPaidTotal = computePaidTotal(allPayments);
+  const baseAmount =
+    invoice.finalAmount != null
+      ? Number(invoice.finalAmount)
+      : Number(invoice.totalAmount || 0);
+  const remainingInvoiceAmount = Math.max(baseAmount - alreadyPaidTotal, 0);
+  if (remainingInvoiceAmount <= 0) {
+    return { invoice, appliedAmount: 0 };
+  }
+
+  const applyAmount = Math.min(remainingDepositAmount, remainingInvoiceAmount);
+  if (applyAmount <= 0) {
+    return { invoice, appliedAmount: 0 };
+  }
+
+  const invoiceForSettlement = {
+    ...invoice,
+    encounter: { appointmentId: Number(appointmentId || 0) || null },
+  };
+
+  await applyPaymentToInvoice(trx, {
+    invoice: invoiceForSettlement,
+    payAmount: applyAmount,
+    methodStr: ONLINE_BOOKING_DEPOSIT_METHOD,
+    meta: {
+      source: "ONLINE_BOOKING_DEPOSIT",
+      autoApplied: true,
+      bookingId,
+      bookingDepositId: deposit.id,
+      qpayPaymentId: deposit.qpayPaymentId || null,
+      paidAt: deposit.paidAt ? deposit.paidAt.toISOString() : null,
+    },
+    createdByUserId,
+  });
+
+  const refreshedInvoice = await loadInvoiceForBillingResponse(trx, invoice.id);
+  return { invoice: refreshedInvoice || invoice, appliedAmount: applyAmount };
 }
 
 /**
@@ -214,7 +325,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
             payments: { include: { createdBy: { select: { id: true, name: true, ovog: true } } } },
           },
         },
-        appointment: { select: { branchId: true } },
+        appointment: { select: { branchId: true, source: true, notes: true } },
       },
     });
 
@@ -240,9 +351,19 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       return res.status(409).json({ error: "Encounter has no linked patient book / patient." });
     }
 
-    const existingInvoice = encounter.invoice;
+    let existingInvoice = encounter.invoice;
 
     if (existingInvoice) {
+      const ensured = await prisma.$transaction((trx) =>
+        ensureOnlineBookingDepositPaymentForInvoice(trx, {
+          invoice: existingInvoice,
+          appointment: encounter.appointment,
+          appointmentId: encounter.appointmentId ?? null,
+          createdByUserId: req.user?.id || null,
+        })
+      );
+      existingInvoice = ensured.invoice;
+
       const discountNum = discountPercentToNumber(existingInvoice.discountPercent);
       const balanceData = await getPatientBalance(patient.id);
 
@@ -444,7 +565,7 @@ router.post("/encounters/:id/invoice", async (req, res) => {
         patientBook: { include: { patient: true } },
         encounterServices: true,
         invoice: { include: { items: true, eBarimtReceipt: true } },
-        appointment: { select: { branchId: true } },
+        appointment: { select: { branchId: true, source: true, notes: true } },
       },
     });
 
@@ -751,6 +872,16 @@ router.post("/encounters/:id/invoice", async (req, res) => {
         });
       });
     }
+
+    const ensured = await prisma.$transaction((trx) =>
+      ensureOnlineBookingDepositPaymentForInvoice(trx, {
+        invoice,
+        appointment: encounter.appointment,
+        appointmentId: encounter.appointmentId ?? null,
+        createdByUserId: req.user?.id || null,
+      })
+    );
+    invoice = ensured.invoice;
 
     // Standardized canonical Invoice response for POST (structure save)
     const respDiscount = discountPercentToNumber(invoice.discountPercent);

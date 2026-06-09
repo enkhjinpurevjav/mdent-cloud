@@ -23,6 +23,7 @@ import {
   allocatePaymentProportionalByRemaining,
   deallocatePaymentProportionalByAllocated,
   computeOverrideSalesFromAllocations,
+  computeLineNetWithSpecialMethodMultiplier,
 } from "../utils/incomeHelpers.js";
 
 // ---------------------------------------------------------------------------
@@ -304,5 +305,33 @@ describe("computeOverrideSalesFromAllocations – wallet override sales", () => 
     const sales = computeOverrideSalesFromAllocations(nonImagingItems, allocations);
 
     assert.equal(sales, 0);
+  });
+});
+
+describe("computeLineNetWithSpecialMethodMultiplier", () => {
+  it("applies 0.9 only to special-method allocation portion", () => {
+    const totalAlloc = new Map([[1, 200000]]);
+    const specialAlloc = new Map([[1, 20000]]);
+
+    const lineNet = computeLineNetWithSpecialMethodMultiplier(1, totalAlloc, specialAlloc, {
+      defaultMultiplier: 1,
+      specialMultiplier: 0.9,
+    });
+
+    // 180k regular + (20k * 0.9) = 198k
+    assert.equal(lineNet, 198000);
+  });
+
+  it("caps special allocation at total allocation safely", () => {
+    const totalAlloc = new Map([[1, 50000]]);
+    const specialAlloc = new Map([[1, 90000]]);
+
+    const lineNet = computeLineNetWithSpecialMethodMultiplier(1, totalAlloc, specialAlloc, {
+      defaultMultiplier: 1,
+      specialMultiplier: 0.9,
+    });
+
+    // Treated as fully special: 50k * 0.9
+    assert.equal(lineNet, 45000);
   });
 });
