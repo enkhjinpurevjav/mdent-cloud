@@ -2,7 +2,10 @@ import { normalizeRegNo, parseRegNo } from "../utils/regno.js";
 
 function isOnlinePlaceholderPatient(patient) {
   if (!patient) return false;
-  return patient.name === "ONLINE" && patient.ovog === "BOOKING";
+  const name = String(patient.name || "").trim().toUpperCase();
+  const ovog = String(patient.ovog || "").trim().toUpperCase();
+  if (name === "ONLINE" && ovog === "BOOKING") return true;
+  return name.includes("ONLINE") && (ovog.includes("BOOK") || name.includes("BOOK"));
 }
 
 function parsePatientFieldsFromOnlineNote(noteValue) {
@@ -90,18 +93,30 @@ async function ensurePatientBook(tx, patientId) {
   });
   if (existing) return existing.id;
 
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const maxEntry = await tx.patientBook.findFirst({
-      orderBy: { bookNumber: "desc" },
-      select: { bookNumber: true },
-    });
-
-    let nextNum = 1;
-    if (maxEntry?.bookNumber) {
-      const parsed = parseInt(maxEntry.bookNumber, 10);
-      if (!Number.isNaN(parsed)) nextNum = parsed + 1;
+  let numericMax = 0;
+  try {
+    const rows = await tx.$queryRaw`
+      SELECT COALESCE(MAX(
+        CASE
+          WHEN "bookNumber" ~ '^[0-9]+$' THEN CAST("bookNumber" AS BIGINT)
+          ELSE NULL
+        END
+      ), 0) AS "maxNumericBookNumber"
+      FROM "PatientBook"
+    `;
+    const rawMax = Array.isArray(rows) && rows[0]
+      ? rows[0].maxNumericBookNumber
+      : 0;
+    const parsedMax = Number(rawMax);
+    if (Number.isFinite(parsedMax) && parsedMax > 0) {
+      numericMax = Math.floor(parsedMax);
     }
+  } catch {
+    numericMax = 0;
+  }
 
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const nextNum = numericMax + attempt + 1;
     const nextBookNumber = String(nextNum).padStart(6, "0");
 
     try {
@@ -130,7 +145,19 @@ async function ensurePatientBook(tx, patientId) {
     }
   }
 
-  throw new Error("Failed to create PatientBook after retries");
+  const fallbackBookNumber = `${Date.now()}${patientId}`.slice(-12);
+  try {
+    const created = await tx.patientBook.create({
+      data: {
+        patientId,
+        bookNumber: fallbackBookNumber,
+      },
+      select: { id: true },
+    });
+    return created.id;
+  } catch (fallbackErr) {
+    throw new Error(`Failed to create PatientBook after retries: ${fallbackErr.message}`);
+  }
 }
 
 /**

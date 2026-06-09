@@ -574,7 +574,9 @@ async function markOnlineBookingConfirmedAfterPaid(bookingId) {
   ]);
 }
 
-async function syncOnlineBookingPaidSideEffects(bookingId, draftId) {
+async function syncOnlineBookingPaidSideEffects(bookingId, draftId, options = {}) {
+  const strict = options.strict !== false;
+
   try {
     await prisma.$transaction(async (tx) => {
       await ensureOnlineBookingPatientForPayment(tx, bookingId, { draftId });
@@ -585,6 +587,7 @@ async function syncOnlineBookingPaidSideEffects(bookingId, draftId) {
     });
   } catch (patientErr) {
     console.error("Online booking patient sync after payment failed:", patientErr);
+    if (strict) throw patientErr;
   }
 
   try {
@@ -593,6 +596,7 @@ async function syncOnlineBookingPaidSideEffects(bookingId, draftId) {
     });
   } catch (appointmentErr) {
     console.error("Online booking appointment sync after payment failed:", appointmentErr);
+    if (strict) throw appointmentErr;
   }
 }
 
