@@ -900,7 +900,7 @@ router.post("/sterilization/disinfection-logs", async (req, res) => {
     }
     if (!nurseName) return res.status(400).json({ error: "nurseName is required" });
 
-    // Qty fields (13)
+    // Qty fields (13 standard + 13 Global branch copies)
     const qtyFields = [
       "qtyPolishingRubber",
       "qtyBrush",
@@ -915,6 +915,19 @@ router.post("/sterilization/disinfection-logs", async (req, res) => {
       "qtyTighteningTip",
       "qtyBurContainer",
       "qtyPlasticSpoon",
+      "qtyGlobalPolishingRubber",
+      "qtyGlobalBrush",
+      "qtyGlobalCup",
+      "qtyGlobalLine",
+      "qtyGlobalShoeCutter",
+      "qtyGlobalPlasticMedicineTray",
+      "qtyGlobalPlasticSpatula",
+      "qtyGlobalTongueDepressor",
+      "qtyGlobalMouthOpener",
+      "qtyGlobalRootmeterTip",
+      "qtyGlobalTighteningTip",
+      "qtyGlobalBurContainer",
+      "qtyGlobalPlasticSpoon",
     ];
 
     const qtyData = {};
