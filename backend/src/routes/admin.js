@@ -1,6 +1,7 @@
 import express from "express";
 import prisma from "../db.js";
 import incomeRoutes from "./admin/income.js";
+import { ensureOnlineBookingDepositPaymentMethod } from "../services/paymentMethodConfigService.js";
 
 const router = express.Router(); // Create the router object
 
@@ -12,6 +13,8 @@ router.use("/income", incomeRoutes);
 // ==========================================================
 router.get("/payment-methods", async (_req, res) => {
   try {
+    await ensureOnlineBookingDepositPaymentMethod(prisma);
+
     const methods = await prisma.paymentMethodConfig.findMany({
       orderBy: { sortOrder: "asc" },
       include: { providers: { orderBy: { sortOrder: "asc" } } },

@@ -2,10 +2,14 @@ import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { applyPaymentToInvoice, computePaidTotal } from "../services/settlementService.js";
 import { applyWalletSettlement } from "../services/walletSettlementService.js";
+import { getOnlineBookingDepositAmount } from "../utils/onlineBookingConfig.js";
 import { sseBroadcast } from "./appointments.js";
 
 const prisma = new PrismaClient();
 const router = express.Router();
+const ONLINE_BOOKING_DEPOSIT_METHOD = "ONLINE_BOOKING_DEPOSIT";
+const ONLINE_BOOKING_NOTE_BOOKING_ID_REGEX = /\[ONLINE BOOKING #(\d+)\]/i;
+const ONLINE_BOOKING_DEPOSIT_AMOUNT = getOnlineBookingDepositAmount();
 
 /**
  * Resolve service branch from encounter appointment for billing invoices.
@@ -43,6 +47,151 @@ export function shouldCompleteMarkerAppointmentAfterBatchSettlement({
     Number.isInteger(numericAppointmentId) &&
     numericAppointmentId > 0
   );
+}
+
+function extractOnlineBookingIdFromAppointmentNotes(notes) {
+  const text = typeof notes === "string" ? notes : "";
+  const match = text.match(ONLINE_BOOKING_NOTE_BOOKING_ID_REGEX);
+  const id = Number(match?.[1] || 0);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+function toLocalHHmm(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+function toLocalDayBounds(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const start = new Date(d);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(d);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+async function resolveOnlineBookingIdForInvoice(trx, { appointment, invoice }) {
+  const fromNotes = extractOnlineBookingIdFromAppointmentNotes(appointment?.notes);
+  if (fromNotes) return fromNotes;
+
+  const source = String(appointment?.source || "").toUpperCase();
+  if (source !== "ONLINE_BOOKING") return null;
+
+  const branchId = Number(appointment?.branchId || 0);
+  const doctorId = Number(appointment?.doctorId || 0);
+  const patientId = Number(invoice?.patientId || appointment?.patientId || 0);
+  const slotTime = toLocalHHmm(appointment?.scheduledAt);
+  const dayBounds = toLocalDayBounds(appointment?.scheduledAt);
+  if (!branchId || !doctorId || !patientId || !slotTime || !dayBounds) {
+    return null;
+  }
+
+  const strict = await trx.booking.findFirst({
+    where: {
+      branchId,
+      doctorId,
+      patientId,
+      status: { in: ["ONLINE_CONFIRMED", "ONLINE_HELD"] },
+      date: { gte: dayBounds.start, lte: dayBounds.end },
+      startTime: slotTime,
+      deposit: { isNot: null },
+    },
+    orderBy: { id: "desc" },
+    select: { id: true },
+  });
+  if (strict?.id) return strict.id;
+
+  const relaxed = await trx.booking.findFirst({
+    where: {
+      branchId,
+      doctorId,
+      patientId,
+      status: { in: ["ONLINE_CONFIRMED", "ONLINE_HELD"] },
+      date: { gte: dayBounds.start, lte: dayBounds.end },
+      deposit: { isNot: null },
+    },
+    orderBy: { id: "desc" },
+    select: { id: true },
+  });
+  return relaxed?.id || null;
+}
+
+export async function resolveOnlineBookingDepositDefaultForInvoice(
+  trx,
+  { invoice, appointment }
+) {
+  if (!appointment || String(appointment.source || "").toUpperCase() !== "ONLINE_BOOKING") {
+    return null;
+  }
+
+  const bookingId = await resolveOnlineBookingIdForInvoice(trx, { appointment, invoice });
+  if (!bookingId) return null;
+
+  const deposit = await trx.bookingDeposit.findUnique({
+    where: { bookingId },
+    select: {
+      id: true,
+      status: true,
+      paidAmount: true,
+    },
+  });
+  if (!deposit || String(deposit.status || "").toUpperCase() !== "PAID") {
+    return null;
+  }
+
+  const expectedDepositAmount = Number(ONLINE_BOOKING_DEPOSIT_AMOUNT || 0);
+  if (!Number.isFinite(expectedDepositAmount) || expectedDepositAmount <= 0) {
+    return null;
+  }
+
+  const invoiceId = Number(invoice?.id || 0);
+  const existingDepositPayments = invoiceId
+    ? await trx.payment.findMany({
+        where: {
+          invoiceId,
+          method: ONLINE_BOOKING_DEPOSIT_METHOD,
+        },
+        select: { amount: true },
+      })
+    : [];
+  const alreadyAppliedAmount = existingDepositPayments.reduce(
+    (sum, row) => sum + Number(row.amount || 0),
+    0
+  );
+  const remainingDepositAmount = Math.max(expectedDepositAmount - alreadyAppliedAmount, 0);
+  if (remainingDepositAmount <= 0) {
+    return null;
+  }
+
+  const allPayments = invoiceId
+    ? await trx.payment.findMany({
+        where: { invoiceId },
+        select: { amount: true },
+      })
+    : [];
+  const alreadyPaidTotal = computePaidTotal(allPayments);
+  const baseAmount =
+    invoice.finalAmount != null
+      ? Number(invoice.finalAmount)
+      : Number(invoice.totalAmount || 0);
+  const remainingInvoiceAmount = Math.max(baseAmount - alreadyPaidTotal, 0);
+  if (remainingInvoiceAmount <= 0) {
+    return null;
+  }
+
+  const defaultAmount = Math.min(remainingDepositAmount, remainingInvoiceAmount);
+  if (defaultAmount <= 0) {
+    return null;
+  }
+
+  return {
+    method: ONLINE_BOOKING_DEPOSIT_METHOD,
+    amount: defaultAmount,
+  };
 }
 
 /**
@@ -214,7 +363,16 @@ router.get("/encounters/:id/invoice", async (req, res) => {
             payments: { include: { createdBy: { select: { id: true, name: true, ovog: true } } } },
           },
         },
-        appointment: { select: { branchId: true } },
+        appointment: {
+          select: {
+            branchId: true,
+            source: true,
+            notes: true,
+            scheduledAt: true,
+            doctorId: true,
+            patientId: true,
+          },
+        },
       },
     });
 
@@ -240,9 +398,14 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       return res.status(409).json({ error: "Encounter has no linked patient book / patient." });
     }
 
-    const existingInvoice = encounter.invoice;
+    let existingInvoice = encounter.invoice;
 
     if (existingInvoice) {
+      const onlineBookingDepositDefault = await resolveOnlineBookingDepositDefaultForInvoice(prisma, {
+        invoice: existingInvoice,
+        appointment: encounter.appointment,
+      });
+
       const discountNum = discountPercentToNumber(existingInvoice.discountPercent);
       const balanceData = await getPatientBalance(patient.id);
 
@@ -337,6 +500,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
         patientOvog: patient.ovog ?? null,
         patientName: patient.name,
         patientRegNo: patient.regNo ?? null,
+        onlineBookingDepositDefault,
       });
     }
 
@@ -378,6 +542,16 @@ router.get("/encounters/:id/invoice", async (req, res) => {
     const patientOldBalance = hasMarker
       ? await getPatientOldBalance(patientId, null)
       : 0;
+    const provisionalInvoiceForDefaults = {
+      id: null,
+      patientId,
+      finalAmount: totalBeforeDiscount,
+      totalAmount: totalBeforeDiscount,
+    };
+    const onlineBookingDepositDefault = await resolveOnlineBookingDepositDefaultForInvoice(prisma, {
+      invoice: provisionalInvoiceForDefaults,
+      appointment: encounter.appointment,
+    });
 
     // Standardized canonical Invoice response for provisional (no saved invoice yet)
     return res.json({
@@ -410,6 +584,7 @@ router.get("/encounters/:id/invoice", async (req, res) => {
       patientOvog: patient.ovog ?? null,
       patientName: patient.name,
       patientRegNo: patient.regNo ?? null,
+      onlineBookingDepositDefault,
     });
   } catch (err) {
     console.error("GET /encounters/:id/invoice failed:", err);
@@ -444,7 +619,16 @@ router.post("/encounters/:id/invoice", async (req, res) => {
         patientBook: { include: { patient: true } },
         encounterServices: true,
         invoice: { include: { items: true, eBarimtReceipt: true } },
-        appointment: { select: { branchId: true } },
+        appointment: {
+          select: {
+            branchId: true,
+            source: true,
+            notes: true,
+            scheduledAt: true,
+            doctorId: true,
+            patientId: true,
+          },
+        },
       },
     });
 
@@ -752,6 +936,11 @@ router.post("/encounters/:id/invoice", async (req, res) => {
       });
     }
 
+    const onlineBookingDepositDefault = await resolveOnlineBookingDepositDefaultForInvoice(prisma, {
+      invoice,
+      appointment: encounter.appointment,
+    });
+
     // Standardized canonical Invoice response for POST (structure save)
     const respDiscount = discountPercentToNumber(invoice.discountPercent);
     const invoicePaidTotal = computePaidTotal(invoice.payments);
@@ -795,6 +984,7 @@ router.post("/encounters/:id/invoice", async (req, res) => {
         serviceCategory: it.service?.category ?? null,
         alreadyAllocated: 0, // No allocations mutated during structure save
       })),
+      onlineBookingDepositDefault,
     });
   } catch (err) {
     console.error("POST /encounters/:id/invoice failed:", err);

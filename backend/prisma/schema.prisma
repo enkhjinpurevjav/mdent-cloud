@@ -616,6 +616,21 @@ model DisinfectionLog {
   qtyBurContainer         Int @default(0) // Борын сав
   qtyPlasticSpoon         Int @default(0) // Хуванцар халбага
 
+  // Global branch tool qty columns (0 allowed)
+  qtyGlobalPolishingRubber      Int @default(0) // Г. Өнгөлгөөний резин
+  qtyGlobalBrush                Int @default(0) // Г. Браш
+  qtyGlobalCup                  Int @default(0) // Г. Хундага
+  qtyGlobalLine                 Int @default(0) // Г. Шугам
+  qtyGlobalShoeCutter           Int @default(0) // Г. Гута тасдагч
+  qtyGlobalPlasticMedicineTray  Int @default(0) // Г. Эмийн хуванцар тавиур
+  qtyGlobalPlasticSpatula       Int @default(0) // Г. Хуванцар шпатель
+  qtyGlobalTongueDepressor      Int @default(0) // Г. Хэл дарагч
+  qtyGlobalMouthOpener          Int @default(0) // Г. Ам тэлэгч
+  qtyGlobalRootmeterTip         Int @default(0) // Г. Рутмерийн хошуу
+  qtyGlobalTighteningTip        Int @default(0) // Г. Чангалагч хошуу
+  qtyGlobalBurContainer         Int @default(0) // Г. Борын сав
+  qtyGlobalPlasticSpoon         Int @default(0) // Г. Хуванцар халбага
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

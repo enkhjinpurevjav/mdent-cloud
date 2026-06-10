@@ -111,6 +111,34 @@ function formatDoctorShortName(fullName: string, ovog?: string | null): string {
   return cleanName;
 }
 
+function toGoogleCalendarDateTime(date: string, time: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ""))) return null;
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(time || ""))) return null;
+  const [yyyy, mm, dd] = String(date).split("-");
+  const [hh, min] = String(time).split(":");
+  return `${yyyy}${mm}${dd}T${hh}${min}00`;
+}
+
+function buildGoogleCalendarLink(summary: {
+  doctorName: string;
+  categoryLabel: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}): string | null {
+  const start = toGoogleCalendarDateTime(summary.date, summary.startTime);
+  const end = toGoogleCalendarDateTime(summary.date, summary.endTime);
+  if (!start || !end) return null;
+
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: `M Dent - Онлайн цаг (${summary.categoryLabel})`,
+    dates: `${start}/${end}`,
+    details: `Эмч: ${summary.doctorName}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 const INPUT_STYLE: React.CSSProperties = {
   width: "100%",
   padding: "10px 12px",
@@ -188,16 +216,15 @@ export default function OnlineBookingPage() {
   const [grid, setGrid] = useState<BookingGrid | null>(null);
   const [loadingGrid, setLoadingGrid] = useState(false);
   const [gridError, setGridError] = useState<string | null>(null);
-  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
-  const [doctorSlots, setDoctorSlots] = useState<string[]>([]);
-  const [doctorSlotsLoading, setDoctorSlotsLoading] = useState(false);
-  const [doctorSlotsError, setDoctorSlotsError] = useState<string | null>(null);
-  const [doctorSlotDurationMinutes, setDoctorSlotDurationMinutes] = useState<number | null>(null);
+  const [availableSlotsByDoctor, setAvailableSlotsByDoctor] = useState<Record<number, string[]>>({});
+  const [slotDurationByDoctor, setSlotDurationByDoctor] = useState<Record<number, number>>({});
+  const [loadingDoctorSlots, setLoadingDoctorSlots] = useState(false);
   const [pendingConfirmation, setPendingConfirmation] = useState<{
     doctor: Doctor;
     slot: string;
     endTime: string;
   } | null>(null);
+  const slotFetchRequestRef = useRef(0);
 
   // Step 5 – payment
   const [holdData, setHoldData] = useState<HoldResponse | null>(null);
@@ -262,12 +289,14 @@ export default function OnlineBookingPage() {
 
   const loadGrid = useCallback(async () => {
     if (!selectedBranchId || !selectedCategory || !selectedDate) return;
+    const requestId = slotFetchRequestRef.current + 1;
+    slotFetchRequestRef.current = requestId;
     setLoadingGrid(true);
+    setLoadingDoctorSlots(true);
     setGridError(null);
     setGrid(null);
-    setSelectedDoctor(null);
-    setDoctorSlots([]);
-    setDoctorSlotsError(null);
+    setAvailableSlotsByDoctor({});
+    setSlotDurationByDoctor({});
     setPendingConfirmation(null);
     try {
       const url = `/api/public/booking-grid?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}&serviceType=${selectedServiceType}`;
@@ -277,55 +306,64 @@ export default function OnlineBookingPage() {
         setGridError(data.error || "Алдаа гарлаа");
         return;
       }
+
+      if (slotFetchRequestRef.current !== requestId) return;
       setGrid(data);
+
+      const doctors = Array.isArray(data?.doctors) ? data.doctors : [];
+      if (doctors.length === 0) return;
+
+      const slotResults = await Promise.all(
+        doctors.map(async (doctor: Doctor) => {
+          try {
+            const slotsUrl = `/api/public/doctor-available-slots?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}&doctorId=${doctor.id}&serviceType=${selectedServiceType}`;
+            const slotRes = await fetch(slotsUrl);
+            const slotData = (await slotRes.json()) as DoctorAvailableSlotsResponse & { error?: string };
+            if (!slotRes.ok) {
+              return { doctorId: doctor.id, slots: [], durationMinutes: null };
+            }
+
+            return {
+              doctorId: doctor.id,
+              slots: Array.isArray(slotData.availableSlots) ? slotData.availableSlots : [],
+              durationMinutes: typeof slotData.durationMinutes === "number" ? slotData.durationMinutes : null,
+            };
+          } catch {
+            return { doctorId: doctor.id, slots: [], durationMinutes: null };
+          }
+        })
+      );
+
+      if (slotFetchRequestRef.current !== requestId) return;
+
+      const slotMap: Record<number, string[]> = {};
+      const durationMap: Record<number, number> = {};
+      for (const row of slotResults) {
+        if (row.slots.length > 0) {
+          slotMap[row.doctorId] = row.slots;
+        }
+        if (typeof row.durationMinutes === "number" && row.durationMinutes > 0) {
+          durationMap[row.doctorId] = row.durationMinutes;
+        }
+      }
+      setAvailableSlotsByDoctor(slotMap);
+      setSlotDurationByDoctor(durationMap);
     } catch {
       setGridError("Сүлжээний алдаа. Дахин оролдоно уу.");
     } finally {
-      setLoadingGrid(false);
-    }
-  }, [selectedBranchId, selectedCategory, selectedDate, selectedServiceType]);
-
-  const closeDoctorSlotsModal = useCallback(() => {
-    setSelectedDoctor(null);
-    setDoctorSlots([]);
-    setDoctorSlotsError(null);
-    setDoctorSlotsLoading(false);
-    setDoctorSlotDurationMinutes(null);
-    setPendingConfirmation(null);
-  }, []);
-
-  const loadDoctorAvailableSlots = useCallback(async (doctor: Doctor) => {
-    if (!selectedBranchId || !selectedCategory || !selectedDate) return;
-    setSelectedDoctor(doctor);
-    setDoctorSlotsLoading(true);
-    setDoctorSlotsError(null);
-    setDoctorSlots([]);
-    setPendingConfirmation(null);
-
-    try {
-      const url = `/api/public/doctor-available-slots?branchId=${selectedBranchId}&category=${encodeURIComponent(selectedCategory.category)}&date=${selectedDate}&doctorId=${doctor.id}&serviceType=${selectedServiceType}`;
-      const res = await fetch(url);
-      const data = (await res.json()) as DoctorAvailableSlotsResponse & { error?: string };
-      if (!res.ok) {
-        setDoctorSlotsError(data.error || "Цагийн мэдээлэл ачааллах үед алдаа гарлаа.");
-        return;
+      if (slotFetchRequestRef.current === requestId) {
+        setLoadingGrid(false);
+        setLoadingDoctorSlots(false);
       }
-      if (data.doctor) setSelectedDoctor(data.doctor);
-      setDoctorSlots(Array.isArray(data.availableSlots) ? data.availableSlots : []);
-      if (typeof data.durationMinutes === "number") {
-        setDoctorSlotDurationMinutes(data.durationMinutes);
-      }
-    } catch {
-      setDoctorSlotsError("Сүлжээний алдаа. Дахин оролдоно уу.");
-    } finally {
-      setDoctorSlotsLoading(false);
     }
   }, [selectedBranchId, selectedCategory, selectedDate, selectedServiceType]);
 
   useEffect(() => {
     if (step === 4) loadGrid();
-    if (step !== 4) closeDoctorSlotsModal();
-  }, [step, loadGrid, closeDoctorSlotsModal]);
+    if (step !== 4) {
+      setPendingConfirmation(null);
+    }
+  }, [step, loadGrid]);
 
   // ── Payment polling ───────────────────────────────────────────────────────
 
@@ -459,7 +497,7 @@ export default function OnlineBookingPage() {
 
   async function handleSlotClick(doctor: Doctor, slotTime: string) {
     if (!selectedBranchId || !selectedCategory || !selectedDate || !draftId) return;
-    const effectiveDuration = doctorSlotDurationMinutes
+    const effectiveDuration = slotDurationByDoctor[doctor.id]
       ?? grid?.durationMinutes
       ?? selectedCategory.durationMinutes;
     const endTime = addMinutes(slotTime, effectiveDuration);
@@ -524,11 +562,9 @@ export default function OnlineBookingPage() {
     setPaymentCheckLoading(false);
     setPaymentCheckMessage(null);
     setGrid(null);
-    setSelectedDoctor(null);
-    setDoctorSlots([]);
-    setDoctorSlotsError(null);
-    setDoctorSlotsLoading(false);
-    setDoctorSlotDurationMinutes(null);
+    setAvailableSlotsByDoctor({});
+    setSlotDurationByDoctor({});
+    setLoadingDoctorSlots(false);
     setPendingConfirmation(null);
     setSelectedServiceType("TREATMENT");
     setSelectedCategory(null);
@@ -625,8 +661,8 @@ export default function OnlineBookingPage() {
         <div style={{ marginTop: 14, borderRadius: 8, border: "1px solid #e5e7eb", background: "#f9fafb", padding: "10px 12px" }}>
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: "#374151" }}>
             Цаг захиалга баталгаажуулалт 20,000 төгрөг болох ба энэхүү төлбөр нь таны эмчилгээний төлбөрөөс хасагдана.
-            Хэрэв та захиалсан цагтаа ирээгүй тохиолдолд энэхүү төлбөр буцаан олгогдохгүйг анхаарна уу?
-            Та захиалсан цагаасаа 24 цагийн өмнө бидэнтэй 77151551 дугаарт холбогдож нэмэлт хураамжгүй өөрчлөх боломжтой.
+            <strong> Хэрэв та товлосон цагтаа ирээгүй тохиолдолд энэхүү төлбөр буцаан олгогдохгүйг анхаарна уу?</strong>
+            {" "}Та захиалагдсан цагаасаа 24 цагийн өмнө бидэнтэй 77151551 дугаарт холбогдож нэмэлт хураамжгүй өөрчлөх боломжтой.
           </p>
           <label style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#111827", fontWeight: 600 }}>
             <input
@@ -853,6 +889,10 @@ export default function OnlineBookingPage() {
   }
 
   function renderStep4() {
+    const doctorsWithSlots = grid
+      ? grid.doctors.filter((doc) => (availableSlotsByDoctor[doc.id] || []).length > 0)
+      : [];
+
     return (
       <div>
         <h2 style={{ fontSize: 18, marginBottom: 4 }}>Цаг сонгох</h2>
@@ -860,10 +900,13 @@ export default function OnlineBookingPage() {
           {selectedCategory?.label} · {selectedDate} · {grid?.durationMinutes ?? selectedCategory?.durationMinutes} минут
         </p>
         <p style={{ color: "#6b7280", fontSize: 12, marginBottom: 16 }}>
-          Эмч сонгоод гарч ирэх цонхноос зөвхөн боломжтой цагуудаас сонгон захиална уу.
+          Зөвхөн боломжтой эмч, боломжтой цагууд харагдана. Доорх цаг дээр дарж шууд захиална уу.
         </p>
 
         {loadingGrid && <p style={{ color: "#6b7280" }}>Ачааллаж байна...</p>}
+        {!loadingGrid && loadingDoctorSlots && (
+          <p style={{ color: "#6b7280", marginBottom: 10 }}>Эмч нарын сул цагийг ачааллаж байна...</p>
+        )}
         {gridError && <p style={{ color: "#ef4444" }}>{gridError}</p>}
         {holdError && (
           <div style={{ background: "#fef2f2", border: "1px solid #fca5a5", borderRadius: 8, padding: 12, marginBottom: 12, color: "#b91c1c", fontSize: 13 }}>
@@ -878,33 +921,65 @@ export default function OnlineBookingPage() {
           </div>
         )}
 
-        {grid && !loadingGrid && grid.doctors.length > 0 && (
+        {grid && !loadingGrid && doctorsWithSlots.length === 0 && !loadingDoctorSlots && (
+          <div style={{ padding: 20, textAlign: "center", color: "#6b7280", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+            Энэ өдөрт боломжтой сул цагтай эмч алга байна.
+          </div>
+        )}
+
+        {grid && !loadingGrid && doctorsWithSlots.length > 0 && (
           <div style={{ display: "grid", gap: 10 }}>
-            {grid.doctors.map((doc) => {
-              const isSelectedDoctor = selectedDoctor?.id === doc.id;
+            {doctorsWithSlots.map((doc) => {
+              const doctorSlots = availableSlotsByDoctor[doc.id] || [];
               return (
-                <button
+                <div
                   key={doc.id}
-                  type="button"
-                  onClick={() => {
-                    void loadDoctorAvailableSlots(doc);
-                  }}
                   style={{
-                    textAlign: "left",
                     padding: "12px 14px",
                     borderRadius: 10,
-                    border: `2px solid ${isSelectedDoctor ? "#f97316" : "#e5e7eb"}`,
-                    background: isSelectedDoctor ? "#fff7ed" : "#fff",
-                    cursor: "pointer",
+                    border: "2px solid #e5e7eb",
+                    background: "#fff",
                   }}
                 >
-                  <div style={{ fontWeight: 700, fontSize: 15, color: isSelectedDoctor ? "#ea580c" : "#111827" }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: "#111827" }}>
                     {formatDoctorShortName(doc.name, doc.ovog)}
                   </div>
                   <div style={{ fontSize: 12, color: "#6b7280", marginTop: 2 }}>
                     {doc.scheduleStart}–{doc.scheduleEnd}
                   </div>
-                </button>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8, marginTop: 10 }}>
+                    {doctorSlots.map((slot) => (
+                      <button
+                        key={`${doc.id}-${slot}`}
+                        type="button"
+                        disabled={holdLoading}
+                        onClick={() => {
+                          const effectiveDuration = slotDurationByDoctor[doc.id]
+                            ?? grid?.durationMinutes
+                            ?? selectedCategory?.durationMinutes
+                            ?? 30;
+                          setPendingConfirmation({
+                            doctor: doc,
+                            slot,
+                            endTime: addMinutes(slot, effectiveDuration),
+                          });
+                        }}
+                        style={{
+                          border: "1px solid #86efac",
+                          borderRadius: 8,
+                          background: "#f0fdf4",
+                          color: "#166534",
+                          padding: "8px 6px",
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: holdLoading ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               );
             })}
           </div>
@@ -914,71 +989,6 @@ export default function OnlineBookingPage() {
           <button style={BTN_GHOST} onClick={() => { setHoldError(null); setStep(3); }}>← Буцах</button>
           <button style={BTN_GHOST} onClick={loadGrid}>🔄 Шинэчлэх</button>
         </div>
-
-        {selectedDoctor && (
-          <div style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(17, 24, 39, 0.45)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 50,
-            padding: 12,
-          }}>
-            <div style={{ background: "#fff", width: "min(560px, 100%)", maxHeight: "85vh", overflowY: "auto", borderRadius: 14, padding: 16 }}>
-              <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 17 }}>Эмч: {formatDoctorShortName(selectedDoctor.name, selectedDoctor.ovog)}</h3>
-                  <p style={{ margin: "4px 0 0", color: "#6b7280", fontSize: 12 }}>
-                    Ажиллах цаг: {selectedDoctor.scheduleStart}–{selectedDoctor.scheduleEnd}
-                  </p>
-                </div>
-                <button type="button" onClick={closeDoctorSlotsModal} style={BTN_GHOST}>✕</button>
-              </div>
-
-              {doctorSlotsLoading && <p style={{ color: "#6b7280", fontSize: 13 }}>Сул цаг ачааллаж байна...</p>}
-              {doctorSlotsError && <p style={{ color: "#b91c1c", fontSize: 13 }}>{doctorSlotsError}</p>}
-              {!doctorSlotsLoading && !doctorSlotsError && doctorSlots.length === 0 && (
-                <p style={{ color: "#6b7280", fontSize: 13 }}>Энэ эмчид сонгосон өдөр сул цаг алга.</p>
-              )}
-              {!doctorSlotsLoading && !doctorSlotsError && doctorSlots.length > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(88px, 1fr))", gap: 8 }}>
-                  {doctorSlots.map((slot) => (
-                    <button
-                      key={slot}
-                      type="button"
-                      disabled={holdLoading}
-                      onClick={() => {
-                        const effectiveDuration = doctorSlotDurationMinutes
-                          ?? grid?.durationMinutes
-                          ?? selectedCategory?.durationMinutes
-                          ?? 30;
-                        setPendingConfirmation({
-                          doctor: selectedDoctor,
-                          slot,
-                          endTime: addMinutes(slot, effectiveDuration),
-                        });
-                      }}
-                      style={{
-                        border: "1px solid #86efac",
-                        borderRadius: 8,
-                        background: "#f0fdf4",
-                        color: "#166534",
-                        padding: "8px 6px",
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: holdLoading ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {slot}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
         {pendingConfirmation && (
           <div style={{
@@ -1011,7 +1021,6 @@ export default function OnlineBookingPage() {
                     const decision = pendingConfirmation;
                     setPendingConfirmation(null);
                     if (!decision) return;
-                    closeDoctorSlotsModal();
                     void handleSlotClick(decision.doctor, decision.slot);
                   }}
                 >
@@ -1136,12 +1145,27 @@ export default function OnlineBookingPage() {
 
   function renderStep6() {
     if (paymentStatus === "PAID") {
+      const calendarLink = bookingSummary ? buildGoogleCalendarLink(bookingSummary) : null;
       return (
         <div style={{ textAlign: "center", padding: "20px 0" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>✅</div>
           <h2 style={{ fontSize: 20, color: "#15803d", marginBottom: 8 }}>Цаг амжилттай захиалагдлаа!</h2>
           <p style={{ color: "#374151", fontSize: 14, maxWidth: 360, margin: "0 auto 16px", lineHeight: 1.6 }}>
-            Thanks for online appointment. Our staff will call you to remind your appointment.
+            Таны цаг захиалга амжилттай хийгдлээ. Таны товлосон цагаас 1 өдрийн өмнө манай байгууллагаас
+            {" "}холбогдон сануулах болно.{" "}
+            {calendarLink ? (
+              <>
+                Та энэхүү захиалгыг{" "}
+                <a href={calendarLink} target="_blank" rel="noopener noreferrer" style={{ color: "#2563eb", fontWeight: 600 }}>
+                  энд дарж
+                </a>{" "}
+                өөрийн календарьт нэмэх боломжтой.
+              </>
+            ) : (
+              "Та энэхүү захиалгыг өөрийн календарьт нэмэх боломжтой."
+            )}
+            {" "}Манай эмнэлэгийг сонгон үйлчлүүлсэн танд баярлалаа. Та дэлгэрэнгүй мэдээлэл авахыг хүсвэл
+            {" "}бидэнтэй 7715-1551 утсаар холбогдож авах боломжтой.
           </p>
           {bookingSummary && (
             <div style={{ background: "#f0fdf4", border: "1px solid #86efac", borderRadius: 10, padding: "14px 20px", display: "inline-block", textAlign: "left", marginBottom: 20, fontSize: 13 }}>

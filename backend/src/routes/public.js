@@ -554,6 +554,52 @@ async function getDraftOrError(draftIdRaw, res) {
   return { draft, draftId };
 }
 
+function toSafeDate(value) {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+async function markOnlineBookingConfirmedAfterPaid(bookingId) {
+  await prisma.$transaction([
+    prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: BookingStatus.ONLINE_CONFIRMED },
+    }),
+    prisma.onlineBookingDraft.updateMany({
+      where: { bookingId, status: { not: "PAID" } },
+      data: { status: "PAID" },
+    }),
+  ]);
+}
+
+async function syncOnlineBookingPaidSideEffects(bookingId, draftId, options = {}) {
+  const strict = options.strict !== false;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await ensureOnlineBookingPatientForPayment(tx, bookingId, { draftId });
+      await tx.onlineBookingDraft.updateMany({
+        where: { bookingId, status: { not: "PAID" } },
+        data: { status: "PAID" },
+      });
+    });
+  } catch (patientErr) {
+    console.error("Online booking patient sync after payment failed:", patientErr);
+    if (strict) throw patientErr;
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await ensureOnlineAppointmentForBooking(tx, bookingId);
+    });
+  } catch (appointmentErr) {
+    console.error("Online booking appointment sync after payment failed:", appointmentErr);
+    if (strict) throw appointmentErr;
+  }
+}
+
 /**
  * POST /api/public/online-booking/start
  * Initializes online booking Step 1 draft without creating/updating Patient.
@@ -1020,20 +1066,8 @@ router.get("/online-booking/drafts/:draftId/payment-status", async (req, res) =>
     }
 
     if (deposit.status === "PAID") {
-      await prisma.$transaction(async (tx) => {
-        await tx.booking.update({
-          where: { id: bookingId },
-          data: { status: BookingStatus.ONLINE_CONFIRMED },
-        });
-        await ensureOnlineBookingPatientForPayment(tx, bookingId, { draftId: draft.id });
-        if (draft.status !== "PAID") {
-          await tx.onlineBookingDraft.update({
-            where: { id: draft.id },
-            data: { status: "PAID" },
-          });
-        }
-        await ensureOnlineAppointmentForBooking(tx, bookingId);
-      });
+      await markOnlineBookingConfirmedAfterPaid(bookingId);
+      await syncOnlineBookingPaidSideEffects(bookingId, draft.id);
       return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });
     }
     if (deposit.status === "EXPIRED" || deposit.status === "CANCELLED") {
@@ -1054,10 +1088,50 @@ router.get("/online-booking/drafts/:draftId/payment-status", async (req, res) =>
       checkResult = await qpayService.checkInvoicePaid(deposit.qpayInvoiceId, deposit.branchId);
     } catch (checkErr) {
       console.error("Draft payment check failed:", checkErr);
-      return res.status(502).json({ error: "Payment check failed: " + checkErr.message });
+
+      // Callback may have already completed in parallel even when polling check fails.
+      const latestDeposit = await prisma.bookingDeposit.findUnique({
+        where: { bookingId },
+      });
+      if (latestDeposit?.status === "PAID") {
+        await markOnlineBookingConfirmedAfterPaid(bookingId);
+        await syncOnlineBookingPaidSideEffects(bookingId, draft.id);
+        return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });
+      }
+
+      if (isExpired) {
+        try {
+          await qpayService.cancelInvoice(deposit.qpayInvoiceId, deposit.branchId);
+        } catch (cancelErr) {
+          console.error("QPay invoice cancel failed after check error:", cancelErr);
+        }
+        await prisma.$transaction([
+          prisma.bookingDeposit.update({
+            where: { bookingId },
+            data: { status: "EXPIRED" },
+          }),
+          prisma.booking.update({
+            where: { id: bookingId },
+            data: { status: BookingStatus.ONLINE_EXPIRED },
+          }),
+          prisma.onlineBookingDraft.update({
+            where: { id: draft.id },
+            data: { status: "EXPIRED" },
+          }),
+        ]);
+        return res.json({ status: "EXPIRED", bookingStatus: BookingStatus.ONLINE_EXPIRED });
+      }
+
+      // Do not hard-fail the user flow for transient provider outages; keep polling.
+      return res.json({
+        status: "PENDING",
+        bookingStatus: BookingStatus.ONLINE_HELD,
+        expiresAt: deposit.holdExpiresAt.toISOString(),
+      });
     }
 
     if (checkResult.paid && checkResult.paidAmount >= ONLINE_BOOKING_DEPOSIT_AMOUNT) {
+      const paidAt = toSafeDate(checkResult.paidAt) || new Date();
       await prisma.$transaction(async (tx) => {
         await tx.bookingDeposit.update({
           where: { bookingId },
@@ -1065,7 +1139,7 @@ router.get("/online-booking/drafts/:draftId/payment-status", async (req, res) =>
             status: "PAID",
             paidAmount: checkResult.paidAmount,
             qpayPaymentId: checkResult.paymentId,
-            paidAt: checkResult.paidAt ? new Date(checkResult.paidAt) : new Date(),
+            paidAt,
             raw: checkResult.raw,
           },
         });
@@ -1073,13 +1147,12 @@ router.get("/online-booking/drafts/:draftId/payment-status", async (req, res) =>
           where: { id: bookingId },
           data: { status: BookingStatus.ONLINE_CONFIRMED },
         });
-        await ensureOnlineBookingPatientForPayment(tx, bookingId, { draftId: draft.id });
-        await tx.onlineBookingDraft.update({
-          where: { id: draft.id },
+        await tx.onlineBookingDraft.updateMany({
+          where: { bookingId, status: { not: "PAID" } },
           data: { status: "PAID" },
         });
-        await ensureOnlineAppointmentForBooking(tx, bookingId);
       });
+      await syncOnlineBookingPaidSideEffects(bookingId, draft.id);
       return res.json({ status: "PAID", bookingStatus: BookingStatus.ONLINE_CONFIRMED });
     }
 
@@ -1113,7 +1186,10 @@ router.get("/online-booking/drafts/:draftId/payment-status", async (req, res) =>
     });
   } catch (err) {
     console.error("GET /api/public/online-booking/drafts/:draftId/payment-status error:", err);
-    return res.status(500).json({ error: "Failed to check draft payment status" });
+    const message = err?.message
+      ? `Failed to check draft payment status: ${err.message}`
+      : "Failed to check draft payment status";
+    return res.status(500).json({ error: message });
   }
 });
 

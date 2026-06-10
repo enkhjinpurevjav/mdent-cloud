@@ -43,6 +43,7 @@ import {
   computeServiceNetProportionalDiscount,
   allocatePaymentProportionalByRemaining,
   deallocatePaymentProportionalByAllocated,
+  computeLineNetWithSpecialMethodMultiplier,
 } from "../../utils/incomeHelpers.js";
 
 const router = express.Router();
@@ -53,6 +54,7 @@ const INCLUDED_METHODS = new Set([
   "POS",
   "TRANSFER",
   "QPAY",
+  "ONLINE_BOOKING_DEPOSIT",
   "WALLET",
   "VOUCHER",
   "OTHER",
@@ -60,6 +62,8 @@ const INCLUDED_METHODS = new Set([
 
 const EXCLUDED_METHODS = new Set(["EMPLOYEE_BENEFIT"]);
 const OVERRIDE_METHODS = new Set(["INSURANCE", "APPLICATION", "WALLET"]);
+const ONLINE_BOOKING_DEPOSIT_METHOD = "ONLINE_BOOKING_DEPOSIT";
+const ONLINE_BOOKING_DEPOSIT_MULTIPLIER = 0.9;
 
 const HOME_BLEACHING_SERVICE_CODE = 151;
 const BARTER_THRESHOLD_MNT = 800_000;
@@ -166,6 +170,7 @@ function computeIncomeFromInvoices(
       serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0])
     );
     const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+    const itemAllocationOnlineDeposit = new Map(serviceItems.map((it) => [it.id, 0]));
 
     let barterSum = 0;
 
@@ -200,6 +205,12 @@ function computeIncomeFromInvoices(
             item.id,
             (itemAllocationBase.get(item.id) || 0) + allocAmt
           );
+          if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+            itemAllocationOnlineDeposit.set(
+              item.id,
+              (itemAllocationOnlineDeposit.get(item.id) || 0) + allocAmt
+            );
+          }
           remainingDue.set(
             item.id,
             Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt)
@@ -213,6 +224,12 @@ function computeIncomeFromInvoices(
         );
         for (const [id, amt] of allocs) {
           itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+          if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+            itemAllocationOnlineDeposit.set(
+              id,
+              (itemAllocationOnlineDeposit.get(id) || 0) + amt
+            );
+          }
         }
       } else if (payAmt < 0) {
         const deallocs = deallocatePaymentProportionalByAllocated(
@@ -221,6 +238,12 @@ function computeIncomeFromInvoices(
           itemAllocationBase
         );
         for (const [id, amt] of deallocs) {
+          if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+            itemAllocationOnlineDeposit.set(
+              id,
+              Math.max(0, (itemAllocationOnlineDeposit.get(id) || 0) - amt)
+            );
+          }
           remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
         }
       }
@@ -251,7 +274,15 @@ function computeIncomeFromInvoices(
 
     for (const it of serviceItems) {
       const service = it.service;
-      const lineNet = (itemAllocationBase.get(it.id) || 0) * feeMultiplier;
+      const lineNet = computeLineNetWithSpecialMethodMultiplier(
+        it.id,
+        itemAllocationBase,
+        itemAllocationOnlineDeposit,
+        {
+          defaultMultiplier: feeMultiplier,
+          specialMultiplier: ONLINE_BOOKING_DEPOSIT_MULTIPLIER,
+        }
+      );
       if (lineNet <= 0) continue;
 
       if (service?.category === "IMAGING") {
@@ -349,6 +380,7 @@ function computeSalesFromInvoices(
       serviceItems.map((it) => [it.id, lineNets.get(it.id) || 0])
     );
     const itemAllocationBase = new Map(serviceItems.map((it) => [it.id, 0]));
+    const itemAllocationOnlineDeposit = new Map(serviceItems.map((it) => [it.id, 0]));
 
     let barterSum = 0;
 
@@ -379,6 +411,12 @@ function computeSalesFromInvoices(
           if (!item) continue;
           const allocAmt = Number(alloc.amount || 0);
           itemAllocationBase.set(item.id, (itemAllocationBase.get(item.id) || 0) + allocAmt);
+          if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+            itemAllocationOnlineDeposit.set(
+              item.id,
+              (itemAllocationOnlineDeposit.get(item.id) || 0) + allocAmt
+            );
+          }
           remainingDue.set(item.id, Math.max(0, (remainingDue.get(item.id) || 0) - allocAmt));
         }
       } else if (payAmt > 0) {
@@ -389,6 +427,12 @@ function computeSalesFromInvoices(
         );
         for (const [id, amt] of allocs) {
           itemAllocationBase.set(id, (itemAllocationBase.get(id) || 0) + amt);
+          if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+            itemAllocationOnlineDeposit.set(
+              id,
+              (itemAllocationOnlineDeposit.get(id) || 0) + amt
+            );
+          }
         }
       } else if (payAmt < 0) {
         const deallocs = deallocatePaymentProportionalByAllocated(
@@ -397,6 +441,12 @@ function computeSalesFromInvoices(
           itemAllocationBase
         );
         for (const [id, amt] of deallocs) {
+          if (method === ONLINE_BOOKING_DEPOSIT_METHOD) {
+            itemAllocationOnlineDeposit.set(
+              id,
+              Math.max(0, (itemAllocationOnlineDeposit.get(id) || 0) - amt)
+            );
+          }
           remainingDue.set(id, (remainingDue.get(id) || 0) + amt);
         }
       }
@@ -422,7 +472,15 @@ function computeSalesFromInvoices(
     } else {
       // Sum proportional allocations for non-IMAGING lines.
       for (const it of nonImagingServiceItems) {
-        const allocAmt = itemAllocationBase.get(it.id) || 0;
+        const allocAmt = computeLineNetWithSpecialMethodMultiplier(
+          it.id,
+          itemAllocationBase,
+          itemAllocationOnlineDeposit,
+          {
+            defaultMultiplier: 1,
+            specialMultiplier: ONLINE_BOOKING_DEPOSIT_MULTIPLIER,
+          }
+        );
         if (allocAmt <= 0) continue;
         const k = bucketKeyForService(it.service);
         byCategory.set(k, (byCategory.get(k) || 0) + allocAmt);

@@ -10,6 +10,62 @@ const router = express.Router();
 
 const ONLINE_BOOKING_DEPOSIT_AMOUNT = getOnlineBookingDepositAmount();
 
+function toSafeDate(value) {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed;
+}
+
+async function markOnlineBookingConfirmedAfterPaid(bookingId, payment = null) {
+  await prisma.$transaction(async (tx) => {
+    if (payment) {
+      await tx.bookingDeposit.update({
+        where: { bookingId },
+        data: {
+          status: "PAID",
+          paidAmount: payment.paidAmount,
+          qpayPaymentId: payment.paymentId || null,
+          paidAt: payment.paidAt,
+          raw: payment.raw ?? undefined,
+        },
+      });
+    }
+
+    await tx.booking.update({
+      where: { id: bookingId },
+      data: { status: BookingStatus.ONLINE_CONFIRMED },
+    });
+
+    await tx.onlineBookingDraft.updateMany({
+      where: { bookingId, status: { not: "PAID" } },
+      data: { status: "PAID" },
+    });
+  });
+}
+
+async function syncOnlineBookingPaidSideEffects(bookingId) {
+  try {
+    await prisma.$transaction(async (tx) => {
+      await ensureOnlineBookingPatientForPayment(tx, bookingId);
+      await tx.onlineBookingDraft.updateMany({
+        where: { bookingId, status: { not: "PAID" } },
+        data: { status: "PAID" },
+      });
+    });
+  } catch (patientErr) {
+    console.error("QPay booking callback patient sync failed:", patientErr);
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await ensureOnlineAppointmentForBooking(tx, bookingId);
+    });
+  } catch (appointmentErr) {
+    console.error("QPay booking callback appointment sync failed:", appointmentErr);
+  }
+}
+
 /**
  * POST /api/qpay/invoice
  * Create QPay invoice for an M Dent invoice
@@ -162,44 +218,70 @@ router.post("/check", async (req, res) => {
  * QPay booking deposit callback endpoint.
  * Validates token, calls payment/check, updates booking status.
  */
-async function handleBookingCallback(bookingId, token) {
-  if (!bookingId || !token) {
-    console.warn("QPay booking callback: missing bookingId or token");
-    return;
-  }
-
-  const bid = Number(bookingId);
-  if (Number.isNaN(bid)) {
-    console.warn("QPay booking callback: invalid bookingId", bookingId);
-    return;
-  }
+async function handleBookingCallback(bookingId, token, meta = {}) {
+  const normalizedInvoiceId = meta.invoiceId ? String(meta.invoiceId) : null;
+  const normalizedSenderInvoiceNo = meta.senderInvoiceNo ? String(meta.senderInvoiceNo) : null;
+  const parsedBookingId = Number(bookingId);
 
   try {
-    const deposit = await prisma.bookingDeposit.findUnique({
-      where: { bookingId: bid },
-    });
+    let deposit = null;
+
+    if (!Number.isNaN(parsedBookingId) && parsedBookingId > 0) {
+      deposit = await prisma.bookingDeposit.findUnique({
+        where: { bookingId: parsedBookingId },
+      });
+    }
+
+    if (!deposit && normalizedInvoiceId) {
+      deposit = await prisma.bookingDeposit.findUnique({
+        where: { qpayInvoiceId: normalizedInvoiceId },
+      });
+    }
+
+    if (!deposit && normalizedSenderInvoiceNo) {
+      deposit = await prisma.bookingDeposit.findUnique({
+        where: { senderInvoiceNo: normalizedSenderInvoiceNo },
+      });
+    }
 
     if (!deposit) {
-      console.warn("QPay booking callback: deposit not found for bookingId", bid);
+      console.warn("QPay booking callback: deposit not found", {
+        bookingId,
+        invoiceId: normalizedInvoiceId,
+        senderInvoiceNo: normalizedSenderInvoiceNo,
+      });
       return;
     }
 
-    // Validate token
-    if (deposit.callbackToken !== String(token)) {
-      console.warn("QPay booking callback: invalid token for bookingId", bid);
-      return;
+    const bid = deposit.bookingId;
+    if (token) {
+      if (deposit.callbackToken !== String(token)) {
+        console.warn("QPay booking callback: invalid token for bookingId", bid);
+        return;
+      }
+    } else {
+      const hasProviderIdentifiers = Boolean(normalizedInvoiceId || normalizedSenderInvoiceNo);
+      const invoiceMatch = !normalizedInvoiceId
+        || String(deposit.qpayInvoiceId) === normalizedInvoiceId;
+      const senderMatch = !normalizedSenderInvoiceNo
+        || String(deposit.senderInvoiceNo) === normalizedSenderInvoiceNo;
+
+      // If callback did not return our query params, accept only when linked by QPay identifiers.
+      if (!hasProviderIdentifiers || !invoiceMatch || !senderMatch) {
+        console.warn("QPay booking callback: insufficient identifiers without token", {
+          bookingId,
+          invoiceId: normalizedInvoiceId,
+          senderInvoiceNo: normalizedSenderInvoiceNo,
+          resolvedBookingId: bid,
+        });
+        return;
+      }
     }
 
     // Already settled
     if (deposit.status === "PAID") {
-      await prisma.$transaction(async (tx) => {
-        await tx.booking.update({
-          where: { id: bid },
-          data: { status: BookingStatus.ONLINE_CONFIRMED },
-        });
-        await ensureOnlineBookingPatientForPayment(tx, bid);
-        await ensureOnlineAppointmentForBooking(tx, bid);
-      });
+      await markOnlineBookingConfirmedAfterPaid(bid);
+      await syncOnlineBookingPaidSideEffects(bid);
       return;
     }
     if (deposit.status === "EXPIRED" || deposit.status === "CANCELLED") {
@@ -210,24 +292,13 @@ async function handleBookingCallback(bookingId, token) {
     const checkResult = await qpayService.checkInvoicePaid(deposit.qpayInvoiceId, deposit.branchId);
 
     if (checkResult.paid && checkResult.paidAmount >= ONLINE_BOOKING_DEPOSIT_AMOUNT) {
-      await prisma.$transaction(async (tx) => {
-        await tx.bookingDeposit.update({
-          where: { bookingId: bid },
-          data: {
-            status: "PAID",
-            paidAmount: checkResult.paidAmount,
-            qpayPaymentId: checkResult.paymentId,
-            paidAt: checkResult.paidAt ? new Date(checkResult.paidAt) : new Date(),
-            raw: checkResult.raw,
-          },
-        });
-        await tx.booking.update({
-          where: { id: bid },
-          data: { status: BookingStatus.ONLINE_CONFIRMED },
-        });
-        await ensureOnlineBookingPatientForPayment(tx, bid);
-        await ensureOnlineAppointmentForBooking(tx, bid);
+      await markOnlineBookingConfirmedAfterPaid(bid, {
+        paidAmount: checkResult.paidAmount,
+        paymentId: checkResult.paymentId || null,
+        paidAt: toSafeDate(checkResult.paidAt) || new Date(),
+        raw: checkResult.raw,
       });
+      await syncOnlineBookingPaidSideEffects(bid);
       console.log(`QPay booking callback: bookingId=${bid} confirmed`);
     }
   } catch (err) {
@@ -239,7 +310,11 @@ router.get("/booking/callback", async (req, res) => {
   const { bookingId, token } = req.query || {};
   // Respond 200 immediately
   res.status(200).send("OK");
-  await handleBookingCallback(bookingId, token);
+  await handleBookingCallback(bookingId, token, {
+    method: "GET",
+    invoiceId: req.query?.invoice_id || req.query?.invoiceId || null,
+    senderInvoiceNo: req.query?.sender_invoice_no || req.query?.senderInvoiceNo || null,
+  });
 });
 
 router.post("/booking/callback", async (req, res) => {
@@ -247,7 +322,21 @@ router.post("/booking/callback", async (req, res) => {
   const token = req.query.token || req.body?.token;
   // Respond 200 immediately
   res.status(200).json({ success: true });
-  await handleBookingCallback(bookingId, token);
+  await handleBookingCallback(bookingId, token, {
+    method: "POST",
+    invoiceId:
+      req.query?.invoice_id
+      || req.query?.invoiceId
+      || req.body?.invoice_id
+      || req.body?.invoiceId
+      || null,
+    senderInvoiceNo:
+      req.query?.sender_invoice_no
+      || req.query?.senderInvoiceNo
+      || req.body?.sender_invoice_no
+      || req.body?.senderInvoiceNo
+      || null,
+  });
 });
 
 /**

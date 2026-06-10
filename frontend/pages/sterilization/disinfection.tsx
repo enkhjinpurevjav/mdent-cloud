@@ -40,6 +40,19 @@ type DisinfectionLog = {
   qtyTighteningTip: number;
   qtyBurContainer: number;
   qtyPlasticSpoon: number;
+  qtyGlobalPolishingRubber: number;
+  qtyGlobalBrush: number;
+  qtyGlobalCup: number;
+  qtyGlobalLine: number;
+  qtyGlobalShoeCutter: number;
+  qtyGlobalPlasticMedicineTray: number;
+  qtyGlobalPlasticSpatula: number;
+  qtyGlobalTongueDepressor: number;
+  qtyGlobalMouthOpener: number;
+  qtyGlobalRootmeterTip: number;
+  qtyGlobalTighteningTip: number;
+  qtyGlobalBurContainer: number;
+  qtyGlobalPlasticSpoon: number;
 
   branch?: { id: number; name: string };
   createdAt?: string;
@@ -74,7 +87,20 @@ type QtyKey =
   | "qtyRootmeterTip"
   | "qtyTighteningTip"
   | "qtyBurContainer"
-  | "qtyPlasticSpoon";
+  | "qtyPlasticSpoon"
+  | "qtyGlobalPolishingRubber"
+  | "qtyGlobalBrush"
+  | "qtyGlobalCup"
+  | "qtyGlobalLine"
+  | "qtyGlobalShoeCutter"
+  | "qtyGlobalPlasticMedicineTray"
+  | "qtyGlobalPlasticSpatula"
+  | "qtyGlobalTongueDepressor"
+  | "qtyGlobalMouthOpener"
+  | "qtyGlobalRootmeterTip"
+  | "qtyGlobalTighteningTip"
+  | "qtyGlobalBurContainer"
+  | "qtyGlobalPlasticSpoon";
 
 const CLINIC_TIME_ZONE = "Asia/Ulaanbaatar";
 
@@ -92,6 +118,19 @@ const TOOL_FIELDS: { key: QtyKey; label: string }[] = [
   { key: "qtyTighteningTip", label: "Чангалагч хошуу" },
   { key: "qtyBurContainer", label: "Борын сав" },
   { key: "qtyPlasticSpoon", label: "Хуванцар халбага" },
+  { key: "qtyGlobalPolishingRubber", label: "Г. Өнгөлгөөний резин" },
+  { key: "qtyGlobalBrush", label: "Г. Браш" },
+  { key: "qtyGlobalCup", label: "Г. Хундага" },
+  { key: "qtyGlobalLine", label: "Г. Шугам" },
+  { key: "qtyGlobalShoeCutter", label: "Г. Гута тасдагч" },
+  { key: "qtyGlobalPlasticMedicineTray", label: "Г. Эмийн хуванцар тавиур" },
+  { key: "qtyGlobalPlasticSpatula", label: "Г. Хуванцар шпатель" },
+  { key: "qtyGlobalTongueDepressor", label: "Г. Хэл дарагч" },
+  { key: "qtyGlobalMouthOpener", label: "Г. Ам тэлэгч" },
+  { key: "qtyGlobalRootmeterTip", label: "Г. Рутмерийн хошуу" },
+  { key: "qtyGlobalTighteningTip", label: "Г. Чангалагч хошуу" },
+  { key: "qtyGlobalBurContainer", label: "Г. Борын сав" },
+  { key: "qtyGlobalPlasticSpoon", label: "Г. Хуванцар халбага" },
 ];
 
 function sumQty(row: Pick<DisinfectionLog, QtyKey>) {

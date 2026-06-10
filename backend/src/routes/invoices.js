@@ -55,6 +55,7 @@ export function derivePaymentStatus(totalAmount, paidAmount) {
 function formatMethodLabel(method) {
   if (!method) return "-";
   const normalized = String(method).trim().toUpperCase();
+  if (normalized === "ONLINE_BOOKING_DEPOSIT") return "онлайн цаг захиалга";
   if (normalized === "QPAY") return "QPay";
   if (normalized === "POS") return "POS";
   if (normalized === "CASH") return "Cash";

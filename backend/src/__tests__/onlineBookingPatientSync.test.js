@@ -21,11 +21,10 @@ function createBaseTx(overrides = {}) {
     },
     patientBook: {
       findUnique: async () => null,
-      findFirst: async () => ({ bookNumber: "000100" }),
       create: async () => ({ id: 999 }),
       ...(overrides.patientBook || {}),
     },
-    $queryRaw: async () => [],
+    $queryRaw: async () => [{ maxNumericBookNumber: 100n }],
     ...(overrides.$queryRaw ? { $queryRaw: overrides.$queryRaw } : {}),
   };
 }
@@ -112,13 +111,12 @@ describe("ensureOnlineBookingPatientForPayment", () => {
       },
       patientBook: {
         findUnique: async () => null,
-        findFirst: async () => ({ bookNumber: "000310" }),
         create: async ({ data }) => {
           createdPatientBookData = data;
           return { id: 8310 };
         },
       },
-      $queryRaw: async () => [],
+      $queryRaw: async () => [{ maxNumericBookNumber: 310n }],
     });
 
     const patientId = await ensureOnlineBookingPatientForPayment(tx, 1002);
@@ -171,5 +169,92 @@ describe("ensureOnlineBookingPatientForPayment", () => {
     assert.equal(patientId, 42);
     assert.equal(bookingUpdated, false);
     assert.equal(patientCreated, false);
+  });
+
+  it("treats legacy placeholder name variants as placeholder and relinks patient", async () => {
+    let bookingUpdatePayload = null;
+
+    const tx = createBaseTx({
+      booking: {
+        findUnique: async () => ({
+          id: 1004,
+          branchId: 1,
+          patientId: 504,
+          note: "Онлайн захиалгаар оруулсан мэдээлэл:\nОвог: Бат\nНэр: Дорж\nУтас: 99887766\nРД: УБ00112233",
+          patient: { id: 504, name: "Online Booking", ovog: "Placeholder" },
+          onlineBookingDraft: {
+            id: 2004,
+            matchedPatientId: 91,
+            matchStatus: "EXISTING",
+            ovog: "Бат",
+            name: "Дорж",
+            phone: "99887766",
+            regNoRaw: "УБ00112233",
+            regNoNormalized: "УБ00112233",
+          },
+        }),
+        update: async ({ data }) => {
+          bookingUpdatePayload = data;
+          return { id: 1004 };
+        },
+      },
+      patient: {
+        findUnique: async ({ where }) => {
+          if (where?.id === 91) return { id: 91 };
+          return null;
+        },
+      },
+      patientBook: {
+        findUnique: async ({ where }) => {
+          if (where?.patientId === 91) return { id: 9101 };
+          return null;
+        },
+      },
+    });
+
+    const patientId = await ensureOnlineBookingPatientForPayment(tx, 1004);
+
+    assert.equal(patientId, 91);
+    assert.deepEqual(bookingUpdatePayload, { patientId: 91 });
+  });
+
+  it("uses numeric max query for book number even with non-numeric entries", async () => {
+    let createdPatientBookData = null;
+
+    const tx = createBaseTx({
+      booking: {
+        findUnique: async () => ({
+          id: 1005,
+          branchId: 7,
+          patientId: 505,
+          note: [
+            "Онлайн захиалгаар оруулсан мэдээлэл:",
+            "Овог: Сүх",
+            "Нэр: Төгөлдөр",
+            "Утас: 99119911",
+            "РД: УБ12345678",
+          ].join("\n"),
+          patient: { id: 505, name: "ONLINE", ovog: "BOOKING" },
+          onlineBookingDraft: null,
+        }),
+        update: async () => ({ id: 1005 }),
+      },
+      patient: {
+        create: async () => ({ id: 95 }),
+      },
+      patientBook: {
+        findUnique: async () => null,
+        create: async ({ data }) => {
+          createdPatientBookData = data;
+          return { id: 9501 };
+        },
+      },
+      $queryRaw: async () => [{ maxNumericBookNumber: "499" }],
+    });
+
+    const patientId = await ensureOnlineBookingPatientForPayment(tx, 1005);
+
+    assert.equal(patientId, 95);
+    assert.deepEqual(createdPatientBookData, { patientId: 95, bookNumber: "000500" });
   });
 });

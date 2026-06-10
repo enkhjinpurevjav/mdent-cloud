@@ -1,5 +1,6 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
+import { ensureOnlineBookingDepositPaymentMethod } from "../services/paymentMethodConfigService.js";
 
 const prisma = new PrismaClient();
 const router = express.Router();
@@ -11,6 +12,8 @@ const router = express.Router();
  */
 router.get("/", async (req, res) => {
   try {
+    await ensureOnlineBookingDepositPaymentMethod(prisma);
+
     const methods = await prisma.paymentMethodConfig.findMany({
       where: { isActive: true },
       orderBy: { sortOrder: "asc" },
